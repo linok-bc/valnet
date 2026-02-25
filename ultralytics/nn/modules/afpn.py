@@ -90,7 +90,7 @@ class TripleAFPNFuseBlock(nn.Module):
         super().__init__()
         self.align1 = ConvBNSiLU(in_ch1, out_ch, 1) if in_ch1 != out_ch else nn.Identity()
         self.align2 = ConvBNSiLU(in_ch2, out_ch, 1) if in_ch2 != out_ch else nn.Identity()
-        self.align3 = ConvBNSiLU(in_ch3, out_ch, 1) if in_ch1 != out_ch else nn.Identity()
+        self.align3 = ConvBNSiLU(in_ch3, out_ch, 1) if in_ch3 != out_ch else nn.Identity()
         self.w = nn.Parameter(torch.ones(3) / 3)
         self.refine = ConvBNSiLU(out_ch, out_ch, 3)
 
@@ -169,8 +169,8 @@ class AFPN(nn.Module):
         H3, H2 -> Hb        Hb at H3 scale
         """
 
-        ha = self.layer2_1(h1, h2, target_size=h1.size())
-        hb = self.layer2_2(h1, h2, target_size=h2.size())
+        ha = self.layer2_1(h2, h3, target_size=h2.size()[2:])
+        hb = self.layer2_2(h2, h3, target_size=h2.size()[2:])
         
         """
         Third stage:
@@ -179,9 +179,9 @@ class AFPN(nn.Module):
         Hb, Ha, H1 -> O3    O3 at H3 scale
         """
 
-        o1 = self.layer3_1(h1, ha, hb, target_size=h1.size())
-        o2 = self.layer3_2(h1, ha, hb, target_size=ha.size())
-        o3 = self.layer3_3(h1, ha, hb, target_size=hb.size())
+        o1 = self.layer3_1(h1, ha, hb, target_size=h1.size()[2:])
+        o2 = self.layer3_2(h1, ha, hb, target_size=ha.size()[2:])
+        o3 = self.layer3_3(h1, ha, hb, target_size=hb.size()[2:])
         out = (o1, o2, o3)
 
         return out
