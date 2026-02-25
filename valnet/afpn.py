@@ -185,13 +185,3 @@ class AFPN(nn.Module):
         out = (o1, o2, o3)
 
         return out
-
-def register_afpn_in_ultralytics():
-    """Call before YOLO('yolov8-afpn.yaml') so Ultralytics can parse AFPN."""
-    try:
-        import ultralytics.nn.modules as modules
-        if not hasattr(modules, "AFPN"):
-            modules.AFPN = AFPN
-        print("AFPN registered in Ultralytics")
-    except ImportError:
-        print("Ultralytics not found - use AFPN as standalone nn.Module")

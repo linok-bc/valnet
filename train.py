@@ -1,3 +1,4 @@
+import sys
 from tqdm import tqdm
 import torch
 from torch import nn
@@ -5,19 +6,22 @@ from ultralytics import YOLO
 from ultralytics.data import build_dataloader, build_yolo_dataset
 from ultralytics.data.utils import check_det_dataset
 from ultralytics.utils import LOGGER
+from ultralytics.utils.ops import process_mask
 from ultralytics.utils.loss import v8SegmentationLoss
 from ultralytics.cfg import get_cfg
 
-from types import SimpleNamespace
+from pathlib import Path
 from valnet.valnet import VALNetModel
+from valnet.evaluate_map import evaluate_valnet
+from matplotlib import pyplot as plt
 
-# ──────────────────────────────────────────────
+"""
 # 1. Build model
-# ──────────────────────────────────────────────
+"""
 cfg = get_cfg()
 cfg.data = "configs/bars.yaml"
 cfg.imgsz = 640
-cfg.batch = 60
+cfg.batch = 24
 cfg.task = "segment"
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -28,20 +32,10 @@ valnet = valnet.to(device)
 valnet.args = get_cfg()
 valnet.model = nn.ModuleList([valnet.backbone_p3, valnet.backbone_p4, valnet.backbone_p5, valnet.neck, valnet.head])
 
-# ──────────────────────────────────────────────
-# 2. Build dataset & dataloader using Ultralytics
-# ──────────────────────────────────────────────
-# You'll need a standard YOLO-seg dataset YAML:
-#
-#   rld.yaml:
-#     path: /path/to/RLD
-#     train: images/train
-#     val: images/val
-#     test: images/test
-#     names:
-#       0: runway
 
-
+"""
+# 2. Build datasets, dataloaders, and validators using Ultralytics
+"""
 
 data_dict = check_det_dataset(cfg.data)
 
@@ -60,9 +54,24 @@ train_loader = build_dataloader(
     shuffle=True,
 )
 
-# ──────────────────────────────────────────────
+val_dataset = build_yolo_dataset(
+    cfg=cfg,
+    img_path=data_dict["val"],
+    batch=cfg.batch,
+    data=data_dict,
+    mode="val",
+    rect=False,
+)
+val_loader = build_dataloader(
+    dataset=val_dataset,
+    batch=cfg.batch,
+    workers=8,
+    shuffle=False,
+)
+
+"""
 # 3. Training setup (matching Table 5 in paper)
-# ──────────────────────────────────────────────
+"""
 optimizer = torch.optim.SGD(
     valnet.parameters(),
     lr=0.01,
@@ -72,20 +81,20 @@ optimizer = torch.optim.SGD(
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
     optimizer, T_max=50, eta_min=0.0001
 )
+criterion = v8SegmentationLoss(valnet)
 
-# ──────────────────────────────────────────────
-# 4. Loss — reuse YOLOv8's loss from the head
-# ──────────────────────────────────────────────
-# The Segment head has a built-in loss computation.
-# If using the extracted head, it computes loss when
-# given predictions + batch targets during training.
 
-# ──────────────────────────────────────────────
-# 5. Training loop
-# ──────────────────────────────────────────────
+"""
+# 4. Training loop
+"""
 EPOCHS = 50
 
-for epoch in tqdm(range(EPOCHS), desc="Training epoch"):
+epochs = [0]
+val_mAP = [0]
+val_AP50 = [0]
+val_AP75 = [0]
+
+for epoch in tqdm(range(EPOCHS), desc="Training epoch", file=sys.stdout):
     valnet.train()
     epoch_loss = 0.0
 
@@ -93,6 +102,7 @@ for epoch in tqdm(range(EPOCHS), desc="Training epoch"):
             enumerate(train_loader), 
             leave=True if epoch==EPOCHS else False, 
             desc="Training batch", 
+            file=sys.stdout, 
             total=len(train_loader)
         ):
         images = batch["img"].to(device).float() / 255.0
@@ -102,7 +112,6 @@ for epoch in tqdm(range(EPOCHS), desc="Training epoch"):
 
         # Compute loss using the head's built-in loss
         # The head expects (predictions, batch_dict) and returns loss
-        criterion = v8SegmentationLoss(valnet)
         loss, loss_items = criterion(preds, batch)
         loss = loss.sum()
 
@@ -114,11 +123,31 @@ for epoch in tqdm(range(EPOCHS), desc="Training epoch"):
         epoch_loss += loss.item()
 
     scheduler.step()
+
     avg_loss = epoch_loss / len(train_loader)
-    print(f"Epoch {epoch+1}/{EPOCHS}  loss: {avg_loss:.4f}  lr: {scheduler.get_last_lr()[0]:.6f}")
+    tqdm.write(f"Epoch {epoch+1}/{EPOCHS}  loss: {avg_loss:.4f}")
 
     # Save checkpoint
     if (epoch + 1) % 10 == 0:
-        torch.save(valnet.state_dict(), f"valnet_epoch{epoch+1}.pt")
+        torch.save(valnet.state_dict(), f"checkpoints/valnet_epoch{epoch+1}.pt")
+
+
+    # Perform evaluation at set intervals
+    if (epoch + 1) % 5 == 0:
+        metrics = evaluate_valnet(valnet, val_loader)
+        val_map, val_ap50, val_ap75 = metrics['mAP'], metrics['AP50'], metrics['AP75']
+        print(f"Validation mAP: {val_map}, AP@50: {val_ap50}, AP@75: {val_ap75}")
+
+        epochs.append(epoch+1)
+        val_mAP.append(val_map)
+        val_AP50.append(val_ap50)
+        val_AP75.append(val_ap75)
 
 print("Training complete")
+
+plt.plot(epochs, val_mAP, label = "val mAP")
+plt.plot(epochs, val_AP50, label = "val AP50")
+plt.plot(epochs, val_AP75, label = "val AP75")
+plt.legend()
+plt.savefig('validation.jpg')
+plt.show()

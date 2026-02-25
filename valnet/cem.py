@@ -10,7 +10,7 @@ class CEM(nn.Module):
     Fourier-based contextual enhancement of RGB images
     """
 
-    def __init__(self, in_channels: int = 3, sigma: int = 2, patch_size = 128):
+    def __init__(self, in_channels: int = 3, sigma: int = 2, patch_size = 64):
         super().__init__()
 
         """
@@ -107,13 +107,3 @@ class CEM(nn.Module):
         y_smile = self._highpass(x_bar)
 
         return x_frown + y_smile
-
-def register_cem_in_ultralytics():
-    """Call before YOLO('yolov8-cem.yaml') so Ultralytics can parse CEM."""
-    try:
-        import ultralytics.nn.modules as modules
-        if not hasattr(modules, "CEM"):
-            modules.CEM = CEM
-        print("CEM registered in Ultralytics")
-    except ImportError:
-        print("Ultralytics not found - use CEM as standalone nn.Module")
