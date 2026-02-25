@@ -138,8 +138,8 @@ class AFPN(nn.Module):
         self.layer1_2 = ConvBNSiLU(c4, c4)
         self.layer1_3 = ConvBNSiLU(c5, c5)
 
-        self.layer2_1 = DualAFPNFuseBlock(c3, c4, c3)
-        self.layer2_2 = DualAFPNFuseBlock(c3, c4, c4)
+        self.layer2_1 = DualAFPNFuseBlock(c4, c5, c4)
+        self.layer2_2 = DualAFPNFuseBlock(c4, c5, c5)
 
         self.layer3_1 = TripleAFPNFuseBlock(c3, c4, c5, c3)
         self.layer3_2 = TripleAFPNFuseBlock(c3, c4, c5, c4)
@@ -170,7 +170,7 @@ class AFPN(nn.Module):
         """
 
         ha = self.layer2_1(h2, h3, target_size=h2.size()[2:])
-        hb = self.layer2_2(h2, h3, target_size=h2.size()[2:])
+        hb = self.layer2_2(h2, h3, target_size=h3.size()[2:])
         
         """
         Third stage:
