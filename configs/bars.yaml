@@ -1,0 +1,11 @@
+# rld.yaml — Runway Landing Dataset for YOLOv8-seg
+# Place this file in your project root
+
+path: /home/linok/Downloads/valnet/datasets/bars  # root directory
+train: train2014/images
+val: val2014/images
+test: test2014/images
+
+# Single class: runway
+names:
+  0: runway
