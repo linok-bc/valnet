@@ -19,7 +19,7 @@ from matplotlib import pyplot as plt
 # 1. Build model
 """
 cfg = get_cfg()
-cfg.data = "configs/bars.yaml"
+cfg.data = "configs/rld.yaml"
 cfg.imgsz = 640
 cfg.batch = 24
 cfg.task = "segment"
@@ -87,7 +87,7 @@ criterion = v8SegmentationLoss(valnet)
 """
 # 4. Training loop
 """
-EPOCHS = 50
+EPOCHS = 200
 
 epochs = [0]
 val_mAP = [0]

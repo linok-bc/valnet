@@ -1,7 +1,7 @@
 path: /home/linok/Downloads/valnet/datasets  # root directory
-train: bars/train2014/images
-val: bars/val2014/images
-test: youtube_video/Ykr1T3CyOjA
+train: rld/train/images
+val: rld/val/images
+test: rld/test/images
 
 # Single class: runway
 names:
