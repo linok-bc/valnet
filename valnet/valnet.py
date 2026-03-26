@@ -18,10 +18,10 @@ import torch
 import torch.nn as nn
 from ultralytics import YOLO
 
-# Import your modules (adjust paths as needed)
 from valnet.afpn import AFPN, ConvBNSiLU
 from valnet.cem import CEM
 from valnet.oam import OAM
+
 
 
 class VALNetNeck(nn.Module):
@@ -41,9 +41,9 @@ class VALNetNeck(nn.Module):
 
         # One CEM per backbone scale
         # CEM operates on feature maps, not raw RGB, so in_channels = feature channels
-        self.cem_p3 = CEM(in_channels=c3)
-        self.cem_p4 = CEM(in_channels=c4)
-        self.cem_p5 = CEM(in_channels=c5)
+        self.cem_p3 = CEM(in_channels=c3, patch_size=8)
+        self.cem_p4 = CEM(in_channels=c4, patch_size=8)
+        self.cem_p5 = CEM(in_channels=c5, patch_size=4)
 
         # AFPN replaces PAFPN
         self.afpn = AFPN(ch=ch)
@@ -90,9 +90,9 @@ class VALNetModel(nn.Module):
         # we get the WHOLE backbone from YOLO; split up to get the multi-channel output
         # if not using YOLOv8s, YOU WILL NEED TO CHANGE THESE!!!
         self.backbone = backbone
-        self.backbone_p3 = nn.Sequential(*list(self.backbone[:4]))
-        self.backbone_p4 = nn.Sequential(*list(self.backbone[4:6]))
-        self.backbone_p5 = nn.Sequential(*list(self.backbone[6:8]))
+        self.backbone_p3 = nn.Sequential(*list(self.backbone[:5]))
+        self.backbone_p4 = nn.Sequential(*list(self.backbone[5:7]))
+        self.backbone_p5 = nn.Sequential(*list(self.backbone[7:10]))
         
         self.neck = VALNetNeck(ch=ch)
         self.oams = nn.ModuleList(OAM(c) for c in ch)

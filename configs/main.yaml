@@ -1,0 +1,19 @@
+# ValNet is built on top of yolov8-seg. This file is used alongside OmegaConf.
+# Not all options may be altered here; you may need to look into ULtralytics configuration docs
+
+data:
+  config: 'configs/rld.yaml'
+  num_classes: 1
+  image_size: 640
+optim:
+  lr: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+yolov8_checkpoint: 'checkpoints/yolov8s-seg.pt'
+train:
+  epochs: 200
+  batch_size: 16
+  num_workers: 12  # num. of workers PER dataloader
+  save_freq: 10
+  val_freq: 5
+  logdir: 'results/logdir'

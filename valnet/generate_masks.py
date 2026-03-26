@@ -84,7 +84,8 @@ def generate_test_masks(
             decoded,
             conf_thres=conf_thres,
             iou_thres=iou_thres,
-            nc=nc,
+            nc=80,
+            classes=[0],
             multi_label=False,
             max_det=max_det,
         )

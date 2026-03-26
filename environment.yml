@@ -1,0 +1,14 @@
+name: ValNet
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pytorch
+  - ultralytics
+  - torchvision
+  - tqdm
+  - torchmetrics
+  - faster-coco-eval
+  - tensorboard
+  - omegaconf
+prefix: /home/linok/miniforge3/envs/ValNet

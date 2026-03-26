@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.transforms import GaussianBlur
 
 class CEM(nn.Module):
     """
@@ -10,7 +9,7 @@ class CEM(nn.Module):
     Fourier-based contextual enhancement of RGB images
     """
 
-    def __init__(self, in_channels: int = 3, sigma: int = 2, patch_size = 64):
+    def __init__(self, in_channels: int = 3, sigma: int = 2, patch_size = 8):
         super().__init__()
 
         """
@@ -27,6 +26,7 @@ class CEM(nn.Module):
         self.lowpass_pool = nn.AvgPool2d(3)
         self.spatial_attention_kernel = nn.Conv2d(2, 1, 3, padding=1)
         self.highpass_kernel = nn.Conv2d(self.in_channels, self.in_channels, 3, padding=1)
+
 
 
     def _lowpass(self, x):
@@ -78,6 +78,7 @@ class CEM(nn.Module):
         patches_weight_window = patches_weight_expanded[:, pad_y_left:pad_y_left+H, pad_x_left:pad_x_left+W]
 
         return patches_weight_window
+
 
 
     def _highpass(self, x):

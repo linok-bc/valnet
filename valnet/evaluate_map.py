@@ -117,7 +117,7 @@ def compute_map_from_eval(
             conf_thres=conf_thres,
             iou_thres=iou_thres,
             nc=80,
-            # classes=[0],
+            classes=[0],
             multi_label=False,
             max_det=max_det,
         )
@@ -215,7 +215,7 @@ def _match_predictions(pred_cls, gt_cls, iou, iou_thresholds):
 
     for ti, thresh in enumerate(iou_thresholds):
         # For each threshold, greedily match predictions to GT
-        matches = (iou >= thresh) & correct_cls.to(iou.device)  # [n_gt, n_det]
+        matches = (iou >= thresh) & correct_cls.to(iou.device)  # [n_det, n_gt]
 
         if matches.any():
             # Find best matches (highest IoU)

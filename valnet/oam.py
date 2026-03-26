@@ -106,7 +106,7 @@ class OAM(nn.Module):
         gmp = x.amax(dim=[2, 3])                    # (B, C)
         ch_attn = self.fc_out(self.fc_gap(gap) + self.fc_gmp(gmp))
         ch_attn = ch_attn[..., None, None]          # (B, C, 1, 1)
-        y_ur = x * ch_attn
+        y_ur = x * F.sigmoid(ch_attn)
 
         # Adaptive weighted fusion (Eq. 18)
         w = torch.softmax(self.fusion_weights, dim=0)
