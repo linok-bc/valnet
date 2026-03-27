@@ -42,7 +42,7 @@ def compute_map_from_eval(
     dataloader,
     nc: int = 1,
     conf_thres: float = 0.001,
-    iou_thres: float = 0.6,
+    iou_thres: float = 0.7,
     max_det: int = 300,
     iou_range: tuple = (0.5, 0.95, 10),
     device: str = "cuda",
@@ -165,16 +165,7 @@ def compute_map_from_eval(
                 continue
 
             # --- Ground truth masks for this image ---
-            if gt_masks.dim() == 3 and gt_masks.shape[0] == bs:
-                # Overlapping mask format: [B, H, W] with instance indices
-                gt_mask_i = gt_masks[si]  # [H, W]
-                # Expand to per-instance binary masks
-                instance_masks = []
-                for gi in range(n_gt):
-                    instance_masks.append((gt_mask_i == (gi + 1)).float())
-                gt_masks_i = torch.stack(instance_masks)  # [n_gt, H, W]
-            else:
-                gt_masks_i = gt_masks[idx]  # [n_gt, H, W]
+            gt_masks_i = gt_masks[idx]  # [n_gt, H, W]
 
             # Resize GT masks to match prediction mask size if needed
             if gt_masks_i.shape[1:] != pred_masks.shape[1:]:
