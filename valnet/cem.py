@@ -23,7 +23,7 @@ class CEM(nn.Module):
         self.patch_size = patch_size
 
         self.lowpass_conv = nn.Conv2d(self.in_channels, self.in_channels, 3, padding=1)
-        self.lowpass_pool = nn.AvgPool2d(3)
+        self.lowpass_pool = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
         self.spatial_attention_kernel = nn.Conv2d(2, 1, 3, padding=1)
         self.highpass_kernel = nn.Conv2d(self.in_channels, self.in_channels, 3, padding=1)
 
