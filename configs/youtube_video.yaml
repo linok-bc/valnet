@@ -1,0 +1,10 @@
+# USE THIS FOR TESTING ONLY
+#
+path: /home/linok/Downloads/valnet/datasets  # root directory
+train: youtube_video/Ykr1T3CyOjA
+val: youtube_video/Ykr1T3CyOjA
+test: youtube_video/Ykr1T3CyOjA
+
+# Single class: runway
+names:
+  0: runway

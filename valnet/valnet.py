@@ -21,6 +21,7 @@ from ultralytics import YOLO
 from valnet.afpn import AFPN, ConvBNSiLU
 from valnet.cem import CEM
 from valnet.oam import OAM
+from valnet.pose_head import PoseHead
 
 
 
@@ -97,6 +98,7 @@ class VALNetModel(nn.Module):
         self.neck = VALNetNeck(ch=ch)
         self.oams = nn.ModuleList(OAM(c) for c in ch)
         self.head = head
+        self.pose_head = PoseHead(ch=ch)
 
     def forward(self, x):
         # Backbone: extract multi-scale features
@@ -111,8 +113,10 @@ class VALNetModel(nn.Module):
         # OAM per scale
         enhanced = [oam(f) for oam, f in zip(self.oams, fused)]
 
-        # Detection/segmentation head
-        return self.head(enhanced)
+        # Segmentation and pose estimation head
+        seg_out  = self.head(enhanced)
+        pose_out = self.pose_head(enhanced)
+        return seg_out, pose_out
 
     @classmethod
     def from_ultralytics(cls, model_name="yolov8s-seg.pt", ch=None):
