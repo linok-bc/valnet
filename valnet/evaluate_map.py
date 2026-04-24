@@ -98,10 +98,8 @@ def compute_map_from_eval(
         gt_masks = batch["masks"].to(device).float()  # [B, H, W] or similar
 
         # --- Forward (eval mode) ---
-        output = model(imgs)
-
-        # Unpack eval-mode output: ((decoded_preds, proto), raw_dict)
-        (decoded, proto), _ = output
+        seg_out, _pose = model(imgs)
+        (decoded, proto), _ = seg_out
         # decoded: [B, 4+nc+nm, N_anchors]
         # proto:   [B, 32, Hp, Wp]
 
