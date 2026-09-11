@@ -6,13 +6,14 @@ data:
   num_classes: 1
   image_size: 640
 optim:
-  lr: 0.1
+  initial_lr: 0.01
+  final_lr: 0.0001
   momentum: 0.937
   weight_decay: 0.0005
 yolov8_checkpoint: 'checkpoints/yolov8s-seg.pt'
 train:
-  epochs: 1500
-  batch_size: 16
+  epochs: 50
+  batch_size: 12
   num_workers: 12  # num. of workers PER dataloader
   save_freq: 10
   val_freq: 5
