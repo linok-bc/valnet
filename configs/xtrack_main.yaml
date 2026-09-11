@@ -2,7 +2,7 @@
 # Not all options may be altered here; you may need to look into ULtralytics configuration docs
 
 data:
-  config: 'configs/rld.yaml'
+  config: 'configs/xp12.yaml'
   num_classes: 1
   image_size: 640
 optim:
@@ -12,9 +12,9 @@ optim:
   weight_decay: 0.0005
 yolov8_checkpoint: 'checkpoints/yolov8s-seg.pt'
 train:
-  epochs: 50
-  batch_size: 12
-  num_workers: 12  # num. of workers PER dataloader
-  save_freq: 10
+  epochs: 2000
+  batch_size: 24
+  num_workers: 24 # num. of workers PER dataloader
+  save_freq: 100
   val_freq: 5
-  logdir: 'results/logdir'
+  logdir: 'results/xtrack_logdir'

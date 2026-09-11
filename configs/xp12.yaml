@@ -1,0 +1,8 @@
+path: /home/linok/Downloads/valnet/datasets  # root directory
+train: xp12_dataset/split_train.txt
+val: xp12_dataset/split_val.txt
+test: xp12_dataset/split_test.txt
+
+# Single class: runway
+names:
+  0: runway

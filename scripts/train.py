@@ -83,12 +83,12 @@ val_loader = build_dataloader(
 """
 optimizer = torch.optim.SGD(
     valnet.parameters(),
-    lr=omegaCfg.optim.lr,
+    lr=omegaCfg.optim.inital_lr,
     momentum=omegaCfg.optim.momentum,
     weight_decay=omegaCfg.optim.weight_decay,
 )
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-    optimizer, T_max=omegaCfg.train.epochs, eta_min=0.0001
+    optimizer, T_max=omegaCfg.train.epochs, eta_min=omegaCfg.optim.final_lr
 )
 criterion = v8SegmentationLoss(valnet)
 
