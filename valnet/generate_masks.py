@@ -1,25 +1,18 @@
 """
-VALNet Test Inference — Overlay predicted segmentation + pose on original images.
+VALNet Test Inference — Overlay predicted segmentation on original images.
 
 One output PNG per input frame:
   - Original image in background
   - Predicted mask drawn as translucent overlay (one color per instance)
-  - Pose (predicted vs GT) printed as text in the top-left corner
-
-Quaternion convention: xyzw (matches the rest of the codebase).
 """
 
 import os
-import math
 import numpy as np
 import torch
-import torch.nn.functional as F
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 from ultralytics.utils.nms import non_max_suppression
 from ultralytics.utils.ops import process_mask
-
-from valnet.pose_loss import denormalize_position
 
 
 INSTANCE_COLORS = [
@@ -30,49 +23,6 @@ INSTANCE_COLORS = [
 MASK_ALPHA = 0.45
 
 
-def _quat_angle_deg(q_pred: torch.Tensor, q_gt: torch.Tensor) -> float:
-    """Geodesic angle between two xyzw quaternions, in degrees."""
-    q_pred = F.normalize(q_pred, dim=-1, eps=1e-8)
-    dot = (q_pred * q_gt).sum().abs().clamp(max=1.0 - 1e-7)
-    return float(2.0 * torch.acos(dot) * 180.0 / math.pi)
-
-
-def _draw_pose_text(
-    img_pil: Image.Image,
-    pos_pred_m: torch.Tensor,
-    pos_gt_m: torch.Tensor,
-    quat_pred: torch.Tensor,
-    quat_gt: torch.Tensor,
-) -> None:
-    """Draw pred/GT pose numbers in top-left, in-place on img_pil."""
-    draw = ImageDraw.Draw(img_pil)
-    try:
-        font = ImageFont.truetype("DejaVuSansMono.ttf", 14)
-    except OSError:
-        font = ImageFont.load_default()
-
-    pos_err = (pos_pred_m - pos_gt_m).abs()
-    rot_err = _quat_angle_deg(quat_pred, quat_gt)
-
-    lines = [
-        "            x       y       z",
-        f"pred:  {pos_pred_m[0]:7.1f} {pos_pred_m[1]:7.1f} {pos_pred_m[2]:7.1f} m",
-        f"gt:    {pos_gt_m[0]:7.1f} {pos_gt_m[1]:7.1f} {pos_gt_m[2]:7.1f} m",
-        f"|err|: {pos_err[0]:7.1f} {pos_err[1]:7.1f} {pos_err[2]:7.1f} m",
-        f"rot err: {rot_err:.2f} deg",
-    ]
-
-    # Dark background box for legibility
-    pad = 4
-    line_h = 16
-    box_h = line_h * len(lines) + 2 * pad
-    box_w = 330
-    draw.rectangle([(0, 0), (box_w, box_h)], fill=(0, 0, 0, 180))
-
-    for i, line in enumerate(lines):
-        draw.text((pad, pad + i * line_h), line, fill=(255, 255, 255), font=font)
-
-
 @torch.no_grad()
 def generate_test_masks(
     model,
@@ -80,12 +30,11 @@ def generate_test_masks(
     output_dir: str = "test_output",
     nc: int = 80,
     conf_thres: float = 0.25,
-    iou_thres: float = 0.6,
+    iou_thres: float = 0.7,
     max_det: int = 300,
     device: str = "cuda",
-    yz_scale: float = 100.0,
 ):
-    """Run inference and save per-frame overlays (mask + pose text)."""
+    """Run inference and save per-frame mask overlays."""
     model.eval()
     model.to(device)
     os.makedirs(output_dir, exist_ok=True)
@@ -100,8 +49,8 @@ def generate_test_masks(
         bs = imgs.shape[0]
         imgsz = imgs.shape[2:]
 
-        # Forward: VALNetModel returns (seg_out, pose_out)
-        seg_out, pose_pred = model(imgs)
+        # Forward: VALNetModel returns seg_out
+        seg_out = model(imgs)
         (decoded, proto), _ = seg_out
 
         # NMS for segmentation
@@ -109,13 +58,6 @@ def generate_test_masks(
             decoded, conf_thres=conf_thres, iou_thres=iou_thres,
             nc=80, classes=[0], multi_label=False, max_det=max_det,
         )
-
-        # Denormalize pose to meters
-        pos_pred_m_batch = denormalize_position(pose_pred[:, :3], yz_scale=yz_scale).cpu()
-        pose_gt = batch["pose"].to(device).float()
-        pos_gt_m_batch = denormalize_position(pose_gt[:, :3], yz_scale=yz_scale).cpu()
-        quat_pred_batch = pose_pred[:, 3:].cpu()
-        quat_gt_batch = pose_gt[:, 3:].cpu()
 
         for si in range(bs):
             det = nms_out[si]
@@ -146,13 +88,6 @@ def generate_test_masks(
                     color = INSTANCE_COLORS[draw_idx % len(INSTANCE_COLORS)]
                     overlay[m] = (*color, int(255 * MASK_ALPHA))
                 canvas = Image.alpha_composite(canvas, Image.fromarray(overlay, "RGBA"))
-
-            # Pose text
-            _draw_pose_text(
-                canvas,
-                pos_pred_m_batch[si], pos_gt_m_batch[si],
-                quat_pred_batch[si], quat_gt_batch[si],
-            )
 
             # Output filename
             if "im_file" in batch:

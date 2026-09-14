@@ -9,19 +9,19 @@ VALNet: Integration with Ultralytics YOLOv8
 - Retrain
 
 Usage:
-    from valnet import build_valnet
-    model = build_valnet(base="yolov8s-seg.pt")
-    model.train(data="your_rld.yaml", epochs=50, batch=12)
+    from valnet.valnet import VALNetModel
+    model = VALNetModel.from_ultralytics("yolov8s-seg.pt", ch=(128, 256, 512))
+
+Training lives in scripts/train.py. VALNetModel is a plain nn.Module, so
+`model.train()` is nn.Module.train(mode) — it toggles train/eval, it does
+not start a training run.
 """
 
-import torch
 import torch.nn as nn
-from ultralytics import YOLO
 
-from valnet.afpn import AFPN, ConvBNSiLU
+from valnet.afpn import AFPN
 from valnet.cem import CEM
 from valnet.oam import OAM
-from valnet.pose_head import PoseHead
 
 
 
@@ -90,15 +90,16 @@ class VALNetModel(nn.Module):
 
         # we get the WHOLE backbone from YOLO; split up to get the multi-channel output
         # if not using YOLOv8s, YOU WILL NEED TO CHANGE THESE!!!
-        self.backbone = backbone
-        self.backbone_p3 = nn.Sequential(*list(self.backbone[:5]))
-        self.backbone_p4 = nn.Sequential(*list(self.backbone[5:7]))
-        self.backbone_p5 = nn.Sequential(*list(self.backbone[7:10]))
+        # `backbone` is deliberately NOT stored on self: the three slices below
+        # already own every one of its layers, so registering it as well would
+        # alias each tensor under two state_dict names.
+        self.backbone_p3 = nn.Sequential(*list(backbone[:5]))
+        self.backbone_p4 = nn.Sequential(*list(backbone[5:7]))
+        self.backbone_p5 = nn.Sequential(*list(backbone[7:10]))
         
         self.neck = VALNetNeck(ch=ch)
         self.oams = nn.ModuleList(OAM(c) for c in ch)
         self.head = head
-        self.pose_head = PoseHead(ch=ch)
 
     def forward(self, x):
         # Backbone: extract multi-scale features
@@ -113,26 +114,32 @@ class VALNetModel(nn.Module):
         # OAM per scale
         enhanced = [oam(f) for oam, f in zip(self.oams, fused)]
 
-        # Segmentation and pose estimation head
-        seg_out  = self.head(enhanced)
-        pose_out = self.pose_head(enhanced)
-        return seg_out, pose_out
+        # Segmentation head
+        seg_out = self.head(enhanced)
+        return seg_out
 
     @classmethod
-    def from_ultralytics(cls, model_name="yolov8s-seg.pt", ch=None):
+    def from_ultralytics(cls, model_name, ch):
         """
         Extract backbone and head from a pretrained Ultralytics model.
 
+        Args:
+            model_name: path to (or name of) a YOLOv8-seg checkpoint.
+            ch: channel sizes at P3, P4, P5. Required — it depends on the
+                YOLOv8 variant, and getting it wrong builds a neck whose
+                channels silently disagree with the backbone.
+
         Usage:
-            valnet = VALNetModel.from_ultralytics("yolov8s-seg.pt")
+            valnet = VALNetModel.from_ultralytics("yolov8s-seg.pt", ch=(128, 256, 512))
         """
         from ultralytics import YOLO
 
         base = YOLO(model_name)
-        if ch is None:
-            ch = get_channel_sizes(base)
-
         m = base.model
+
+        # Ultralytics weights are frozen by default; we need to unfreeze
+        for p in m.parameters():
+            p.requires_grad_(True)
 
         # Extract backbone layers (indices 0-9 in YOLOv8 typically)
         # and head (last module)

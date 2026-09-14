@@ -29,7 +29,7 @@ import torch.nn.functional as F
 import numpy as np
 from ultralytics.utils import ops
 from ultralytics.utils.nms import non_max_suppression
-from ultralytics.utils.metrics import mask_iou, box_iou
+from ultralytics.utils.metrics import mask_iou
 
 
 # ---------------------------------------------------------------------------
@@ -98,7 +98,7 @@ def compute_map_from_eval(
         gt_masks = batch["masks"].to(device).float()  # [B, H, W] or similar
 
         # --- Forward (eval mode) ---
-        seg_out, _pose = model(imgs)
+        seg_out = model(imgs)
         (decoded, proto), _ = seg_out
         # decoded: [B, 4+nc+nm, N_anchors]
         # proto:   [B, 32, Hp, Wp]
@@ -110,11 +110,17 @@ def compute_map_from_eval(
         # --- NMS per image ---
         # Permute decoded to [B, N_anchors, 4+nc+nm] for NMS
         nms_input = decoded  # already in correct format for ops.non_max_suppression
+        # The head's own class count, derived from the tensor layout:
+        # decoded is [B, 4 + nc_head + nm, N] and proto is [B, nm, Hp, Wp].
+        # VALNet keeps the pretrained 80-class COCO head, but a model trained
+        # by Ultralytics on this dataset has a 1-class head, and passing the
+        # wrong nc here silently misreads the score/mask-coefficient split.
+        nc_head = decoded.shape[1] - 4 - proto.shape[1]
         nms_out = non_max_suppression(
             nms_input,
             conf_thres=conf_thres,
             iou_thres=iou_thres,
-            nc=80,
+            nc=nc_head,
             classes=[0],
             multi_label=False,
             max_det=max_det,

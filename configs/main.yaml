@@ -6,14 +6,26 @@ data:
   num_classes: 1
   image_size: 640
 optim:
-  initial_lr: 0.01
-  final_lr: 0.0001
+  initial_lr: 0.01        # base LR; per-part multipliers below scale it
+  final_lr: 0.0001        # cosine floor (= initial_lr * 0.01, matching Ultralytics' lrf)
   momentum: 0.937
-  weight_decay: 0.0005
+  weight_decay: 0.0005    # applied to conv/linear weights only, not norms or biases
+  # Per-part LR multipliers. The backbone is pretrained on COCO and its features
+  # stay valid, so it moves slowly. The CEM+AFPN neck and OAM are randomly
+  # initialized and need the full rate. The head is pretrained but now reads from
+  # a random neck, so its weights are only a partial prior — middle ground.
+  backbone_lr_mult: 0.1
+  neck_lr_mult: 1.0
+  head_lr_mult: 0.5
+  warmup_epochs: 3.0      # linear LR warmup; protects the pretrained backbone
+  warmup_momentum: 0.8    # momentum ramps to `momentum` over the same window
+  grad_clip: 10.0         # max grad norm; 0 disables
 yolov8_checkpoint: 'checkpoints/yolov8s-seg.pt'
 train:
   epochs: 50
   batch_size: 12
+  amp: True               # mixed precision (CUDA only)
+  ema_decay: 0.9999       # EMA of weights; validated and checkpointed instead of raw
   num_workers: 12  # num. of workers PER dataloader
   save_freq: 10
   val_freq: 5
@@ -21,7 +33,7 @@ train:
 test:
   batch_size: 16
   num_workers: 12
-  checkpoint: checkpoints/valnet_epoch50.pt
+  checkpoint: checkpoints/valnet_best.pt
   output_dir: results/youtube_video/test_visuals
   save_binary: False
   save_instance: True

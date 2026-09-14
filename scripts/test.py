@@ -1,25 +1,15 @@
 import os
-import sys
-from tqdm import tqdm
 import torch
 from torch import nn
-from ultralytics import YOLO
 from ultralytics.data import build_dataloader, build_yolo_dataset
 from ultralytics.data.utils import check_det_dataset
-from ultralytics.utils import LOGGER
-from ultralytics.utils.ops import process_mask
-from ultralytics.utils.loss import v8SegmentationLoss
 from ultralytics.cfg import get_cfg
-import ultralytics.data.build as build_module
 
 from omegaconf import OmegaConf
 from pathlib import Path
 from valnet.valnet import VALNetModel
 from valnet.generate_masks import generate_test_masks
-from valnet.pose_dataset import PoseYOLODataset
-from matplotlib import pyplot as plt
 from valnet.evaluate_map import evaluate_valnet
-from valnet.evaluate_pose import evaluate_pose, format_pose_metrics
 
 if __name__ == '__main__':
     
@@ -38,7 +28,6 @@ if __name__ == '__main__':
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     valnet = VALNetModel.from_ultralytics(Path(main_dir, omegaCfg.yolov8_checkpoint), ch=(128, 256, 512))
-    build_module.YOLODataset = PoseYOLODataset
     valnet = valnet.to(device)
     
     # for v8SegmentationLoss; there are weights that can be adjusted
@@ -81,7 +70,9 @@ if __name__ == '__main__':
           f"AP50: {seg_metrics['AP50']:.3f}  "
           f"AP75: {seg_metrics['AP75']:.3f}")
     
-    pose_metrics = evaluate_pose(valnet, test_loader,
-                                 yz_scale=args.yz_scale, device=device)
-    print(format_pose_metrics(pose_metrics))
-    generate_test_masks(valnet, test_loader, args.mask_dir, yz_scale=args.yz_scale)
+    generate_test_masks(
+        valnet,
+        test_loader,
+        output_dir=Path(main_dir, omegaCfg.test.output_dir),
+        device=device,
+    )
