@@ -8,12 +8,12 @@ source:
   # Where the collector wrote the episodes. The regenerated dataset lands in
   # ~/Documents/xp12_dataset by default (collector config.yaml, output_dir);
   # point this at datasets/xp12_dataset to run against the old one.
-  root: /home/linok/Documents/xp12_dataset
+  root: /home/linok/Downloads/valnet/datasets/xp12_dataset
   runways_dat: null            # null -> the collector's own utils/runways.dat
 
 dataset:
   out: datasets/bev_toy
-  jpeg_quality: 92
+  jpeg_quality: 95
 
 camera:
   # calibrate.py fits these from the logs and writes camera.json; if it is
@@ -49,32 +49,64 @@ split_fractions:               # grouped by AIRPORT, not by episode
   train: 0.8
   val: 0.1
 
-bev:
-  # Matches experiments.bev.grids.GridPolicy field for field.
-  mode: threshold              # threshold | altitude | horizon | fixed
-  width_px: 320                # ~1:3 canvas -- the runway is long and thin, and the
-  height_px: 1024              # visible ground is a wedge, so a wide canvas is mostly
-                               # black. Square metric pixels are non-negotiable: an
-                               # anisotropic scale turns the rotated runway into a
-                               # parallelogram and the oriented box stops fitting.
-  x_near_m: 50.0               # mode: fixed
-  x_far_m: 1200.0
-  x_near_h: 2.0                # mode: altitude, in multiples of height AGL.
-  x_far_h: 30.0                # On a 3 deg glideslope the threshold sits at ~19h,
-                               # so 2h..30h holds it at roughly constant size.
-  horizon_margin_px: 24.0      # mode: horizon
-  mpp_m: 0.75                  # mode: threshold. Fixed scale -> a 45 m runway is
-                               # 60 px across in EVERY frame, at 3 km and at 200 m.
-  back_m: 150.0                # canvas starts this far short of the threshold, so
-                               # the threshold sits 150 m / 0.75 = 200 rows up
-  min_range_m: 20.0
-  max_range_m: 4000.0
+arms:
+  # One cell of the experiment each: a view, a target geometry, and -- for the
+  # bev arms -- which ground raster. Adding an arm is an edit here plus a
+  # rebuild; the builder, trainer, evaluator and visualiser all read this.
+  persp_seg:   {view: perspective, target: segment}
+  persp_obb:   {view: perspective, target: obb}
+  bev_seg:     {view: bev, target: segment, grid: threshold}
+  bev_obb:     {view: bev, target: obb,     grid: threshold}
+  bev_seg_alt: {view: bev, target: segment, grid: altitude}
+  bev_obb_alt: {view: bev, target: obb,     grid: altitude}
+
+grids:
+  # Named ground rasters. Each field maps onto experiments.bev.grids.GridPolicy.
+  # A frame is kept only if it is usable under EVERY grid listed here and in the
+  # perspective view, so every arm is trained and scored on the same frames.
+
+  threshold:
+    # Canvas placed on the KNOWN along-track range at a fixed scale, so the
+    # threshold lands on the same canvas row and the runway spans the same
+    # number of pixels in every image. Measured cost: the along-range stretch
+    # grows from 2.5x at 200 m to 31x at 1.4 km, and only 617 m of runway fits
+    # at ANY range.
+    mode: threshold
+    width_px: 320
+    height_px: 1024
+    mpp_m: 0.75
+    back_m: 150.0
+    min_range_m: 20.0
+    max_range_m: 4000.0
+
+  altitude:
+    # Canvas tied to height instead of to a fixed scale. On these approaches the
+    # range/height ratio is 13 median (6.9-21.9 p5-p95), so a 2h..30h window
+    # spans a near-constant number of source rows: the stretch stays at 2.1x at
+    # every range and the runway inside the canvas grows to 1212 m at 1.4 km.
+    # Measured cost: the runway narrows to 20 px at range, and the threshold no
+    # longer lands on a fixed row.
+    mode: altitude
+    width_px: 320
+    height_px: 1024
+    x_near_h: 2.0
+    x_far_h: 30.0
+    min_range_m: 20.0
+    max_range_m: 4000.0
 
 train:
   # Shared across arms so a difference in the result is attributable to the arm.
   epochs: 30                   # a toy run: ~20 min/arm on a 3090 Ti at this size
-  batch: 16
-  imgsz: 640
+  batch: 16                    # at imgsz 1024 this is ~2.6x the activation memory of
+                               # the 640 run; drop to 8 if a 24 GB card complains
+  imgsz: 1024                  # the BEV canvas is 320x1024, so 640 letterboxed it DOWN
+                               # to 200x640 and threw away 37% of the linear resolution
+                               # already on disk. At 1024 the canvas maps 1:1. The
+                               # perspective arms gain too (1280x720 -> 1024x576 instead
+                               # of 640x360), so the comparison stays even.
+                               # Cost: the 1:3 canvas is padded to square, so ~69% of
+                               # each tile is padding. Set rect=True to cut that, at the
+                               # price of Ultralytics disabling shuffle.
   optimizer: SGD
   lr0: 0.01
   lrf: 0.01
@@ -87,7 +119,7 @@ train:
   project: experiments/bev_yolo/runs
   weights:
     segment: checkpoints/yolov8s-seg.pt
-    obb: yolov8s-obb.pt        # downloaded on first use; no seg equivalent needed
+    obb: checkpoints/yolov8s-obb.pt        # downloaded on first use; no seg equivalent needed
 
 eval:
   split: test

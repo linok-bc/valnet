@@ -1,3 +1,13 @@
-runs/
-preview*.jpg
+# Training outputs: one directory per arm, tens of MB of weights each.
+runs*/
+
+# The fitted camera model is dataset-specific. Regenerate it with calibrate.py
+# against YOUR collector output rather than inheriting someone else's fit --
+# build_dataset.py warns when the two disagree, but only if this is absent.
 camera.json
+
+# Rendered diagnostics. Also caught by the repo-root *.jpg rule; spelled out
+# here so this directory documents its own outputs.
+preview*.jpg
+predictions_*.jpg
+whole_runway_bev.jpg

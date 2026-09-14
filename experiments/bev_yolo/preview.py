@@ -14,6 +14,7 @@ Slack between the box and the runway in the BEV panel is the part of the
 experiment's premise that would be false.
 
     python -m experiments.bev_yolo.preview --data /path/to/xp12_dataset -n 8
+    python -m experiments.bev_yolo.preview --grid altitude -n 8
 """
 
 import argparse
@@ -23,11 +24,10 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-import yaml
-
 from experiments.bev.camera import CameraModel
 from experiments.bev.episodes import find_episodes, load_runways
-from experiments.bev.grids import GridPolicy, resolution_report
+from experiments.bev.grids import resolution_report
+from experiments.bev_yolo.arms import load_config
 from experiments.bev.labels import clip_to_canvas, obb_geometry, warp_points
 from experiments.bev.transform import bev_from_image, warp_image
 
@@ -59,9 +59,11 @@ def main():
     ap.add_argument("--episode", default=None, help="restrict to one episode dir name")
     ap.add_argument("--out", default="experiments/bev_yolo/preview.jpg")
     ap.add_argument("--panel-height", type=int, default=520)
+    ap.add_argument("--grid", default=None,
+                    help="which named grid from the config (default: the first)")
     args = ap.parse_args()
 
-    cfg = yaml.safe_load(Path(args.config).read_text())
+    cfg, _, grids = load_config(args.config)
     root = Path(args.data or cfg["source"]["root"])
 
     fit = Path(cfg["camera"]["fit"]) if cfg["camera"].get("fit") else None
@@ -71,7 +73,11 @@ def main():
         c = cfg["camera"]
         cam = CameraModel.from_fov(c["width"], c["height"], c["fov_x_deg"],
                                    c["fov_y_deg"], c.get("tilt_deg", 0.0))
-    policy = GridPolicy(**cfg["bev"])
+    grid_name = args.grid or next(iter(grids))
+    if grid_name not in grids:
+        raise SystemExit(f"unknown grid {grid_name!r}; config has {', '.join(grids)}")
+    policy = grids[grid_name]
+    print(f"grid: {grid_name} ({policy.mode})")
     runways = load_runways(cfg["source"].get("runways_dat") or None)
 
     episodes = find_episodes(root)
@@ -108,7 +114,7 @@ def main():
         bev = warp_image(img, m_bev, grid)
         pts, valid = warp_points(poly_src, m_bev)
         right = bev.copy()
-        lines = [f"BEV  mode={policy.mode}  {grid.mpp:.2f} m/px"]
+        lines = [f"BEV  {grid_name} ({policy.mode})  {grid.mpp:.2f} m/px"]
         if valid.all():
             poly_bev = clip_to_canvas(pts, grid.width, grid.height)
             if len(poly_bev) >= 3:

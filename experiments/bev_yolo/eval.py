@@ -42,7 +42,7 @@ import numpy as np
 from experiments.bev.camera import CameraModel
 from experiments.bev.labels import clip_to_canvas
 from experiments.bev.transform import BEVGrid, ground_to_image
-from experiments.bev_yolo.build_dataset import ARMS
+from experiments.bev_yolo.arms import load_config
 
 
 # ----------------------------------------------------------------- geometry --
@@ -101,7 +101,7 @@ def estimate(poly_ground: np.ndarray):
     }
 
 
-def polygon_to_ground(poly_px, rec, cam, view, ground_window=True):
+def polygon_to_ground(poly_px, rec, cam, arm, ground_window=True):
     """Prediction in image pixels -> runway polygon on the ground, in metres.
 
     `ground_window` clips the perspective arm to the same patch of ground the BEV
@@ -113,9 +113,12 @@ def polygon_to_ground(poly_px, rec, cam, view, ground_window=True):
     but it is a property of the WINDOW, not of the representation, so it is held
     equal here and called out separately.
     """
-    g = rec["grid"]
+    # a perspective arm has no grid of its own; it borrows one purely to define
+      # the ground window, so pick the first (any is fine -- see below)
+    gname = arm.grid or next(iter(rec["grids"]))
+    g = rec["grids"][gname]
     grid = BEVGrid(g["width"], g["height"], g["mpp"], g["x_near"])
-    if view == "bev":
+    if arm.is_bev:
         return ground_from_bev(poly_px, grid)
     pts, valid = ground_from_image(poly_px, cam, rec["roll_deg"], rec["pitch_deg"],
                                    rec["height_m"])
@@ -189,28 +192,32 @@ def summarise(rows, bins, label):
 
 def evaluate_arm(arm, dataset_root, weights, split, conf, bins, device,
                  oracle_only=False, ground_window=True):
-    view, target = ARMS[arm]
     root = Path(dataset_root)
     cam = CameraModel(**json.loads((root / "meta" / "camera.json").read_text())["camera"])
     records = {json.loads(l)["name"]: json.loads(l)
                for l in (root / "meta" / f"{split}.jsonl").read_text().splitlines()}
 
-    img_dir = root / "arms" / arm / "images" / split
-    lbl_dir = root / "arms" / arm / "labels" / split
+    img_dir = root / "arms" / arm.name / "images" / split
+    lbl_dir = root / "arms" / arm.name / "labels" / split
     images = sorted(p for p in img_dir.iterdir() if p.suffix.lower() in (".jpg", ".png"))
     if not images:
         raise SystemExit(f"no images in {img_dir}")
 
     def size_of(rec):
-        g = rec["grid"]
-        return (g["width"], g["height"]) if view == "bev" else (cam.width, cam.height)
+        if not arm.is_bev:
+            return (cam.width, cam.height)
+        g = rec["grids"][arm.grid]
+        return (g["width"], g["height"])
 
     def score(poly_px, rec):
-        row = {"range_m": rec["range_m"], "ok": False,
+        # the name travels with the row so results from DIFFERENT builds (a
+        # different grid policy keeps a different frame set) can be intersected
+        # rather than compared over unequal subsets
+        row = {"name": rec["name"], "range_m": rec["range_m"], "ok": False,
                "xtrack_err": np.nan, "yaw_err": np.nan, "width_err": np.nan}
         if poly_px is None:
             return row
-        est = estimate(polygon_to_ground(poly_px, rec, cam, view, ground_window))
+        est = estimate(polygon_to_ground(poly_px, rec, cam, arm, ground_window))
         if est is not None:
             row.update(ok=True,
                        xtrack_err=est["right_m"] - rec["right_m"],
@@ -228,25 +235,26 @@ def evaluate_arm(arm, dataset_root, weights, split, conf, bins, device,
         for chunk in range(0, len(images), 64):
             batch = images[chunk:chunk + 64]
             results = model.predict(batch, conf=conf, verbose=False, device=device,
-                                    retina_masks=(target == "segment"))
+                                    retina_masks=(arm.target == "segment"))
             for path, res in zip(batch, results):
-                pred_rows.append(score(predicted_polygon(res, target), records[path.stem]))
+                pred_rows.append(score(predicted_polygon(res, arm.target),
+                                       records[path.stem]))
 
-    print(f"\n=== {arm}  ({view} image, {target} target)  split={split} "
-          f"n={len(images)} ===")
+    grid_note = f", {arm.grid} grid" if arm.is_bev else ""
+    print(f"\n=== {arm.name}  ({arm.view} image, {arm.target} target{grid_note})  "
+          f"split={split} n={len(images)} ===")
     summarise(oracle_rows, bins, "ORACLE (ground-truth label through the same pipeline)")
     if pred_rows:
         summarise(pred_rows, bins, f"PREDICTED ({Path(weights).name})")
-    return {"arm": arm, "oracle": oracle_rows, "pred": pred_rows}
+    return {"arm": arm.name, "oracle": oracle_rows, "pred": pred_rows}
 
 
 def main():
-    import yaml
-
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default="experiments/bev_yolo/config.yaml")
-    ap.add_argument("--arm", default="all", choices=["all", *ARMS])
+    ap.add_argument("--arm", default="all",
+                    help="an arm name from the config, or 'all'")
     ap.add_argument("--weights", default=None,
                     help="default: <project>/<arm>/weights/best.pt")
     ap.add_argument("--split", default=None)
@@ -259,17 +267,19 @@ def main():
     ap.add_argument("--json-out", default=None)
     args = ap.parse_args()
 
-    cfg = yaml.safe_load(Path(args.config).read_text())
+    cfg, arms, _ = load_config(args.config)
+    if args.arm != "all" and args.arm not in arms:
+        raise SystemExit(f"unknown arm {args.arm!r}; config has {', '.join(arms)}")
     split = args.split or cfg["eval"]["split"]
     bins = cfg["eval"]["range_bins_m"]
     root = cfg["dataset"]["out"]
     project = Path(cfg["train"]["project"]).resolve()
 
     out = []
-    for arm in (list(ARMS) if args.arm == "all" else [args.arm]):
-        weights = args.weights or str(project / arm / "weights" / "best.pt")
+    for arm in ([arms[a] for a in arms] if args.arm == "all" else [arms[args.arm]]):
+        weights = args.weights or str(project / arm.name / "weights" / "best.pt")
         if not args.oracle_only and not Path(weights).exists():
-            print(f"\n=== {arm}: no weights at {weights}, skipping ===")
+            print(f"\n=== {arm.name}: no weights at {weights}, skipping ===")
             continue
         out.append(evaluate_arm(arm, root, weights, split, cfg["eval"]["conf"],
                                 bins, args.device, oracle_only=args.oracle_only,
