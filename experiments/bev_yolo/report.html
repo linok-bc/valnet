@@ -1,0 +1,492 @@
+<title>The Centroid Swap</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap">
+<style>
+  :root{
+    --paper:#f4f6f8; --surface:#ffffff; --sunk:#eaeef2;
+    --ink:#101820; --ink-2:#48566a; --ink-3:#7d8b9c;
+    --rule:#d5dce4; --rule-soft:#e5eaef;
+    --accent:#1b5fb0; --accent-soft:#e7eff8;
+    --s-front:#2a78d6; --s-rect:#eb6834; --s-axis:#1baf7a;
+    --good:#0f7a52; --warn:#9a6207;
+    --measure:66ch;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#0f1419; --surface:#161d25; --sunk:#1c242d;
+      --ink:#e9eef4; --ink-2:#a3b1c1; --ink-3:#74838f;
+      --rule:#2a343f; --rule-soft:#212a33;
+      --accent:#6ba6ec; --accent-soft:#172536;
+      --s-front:#3987e5; --s-rect:#d95926; --s-axis:#199e70;
+      --good:#3fae82; --warn:#d1a24a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#0f1419; --surface:#161d25; --sunk:#1c242d;
+    --ink:#e9eef4; --ink-2:#a3b1c1; --ink-3:#74838f;
+    --rule:#2a343f; --rule-soft:#212a33;
+    --accent:#6ba6ec; --accent-soft:#172536;
+    --s-front:#3987e5; --s-rect:#d95926; --s-axis:#199e70;
+    --good:#3fae82; --warn:#d1a24a;
+  }
+
+  *{box-sizing:border-box}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:"Source Serif 4",Georgia,"Times New Roman",serif;
+    font-size:17px; line-height:1.62; margin:0;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    display:grid; gap:0 2rem; padding:0 1.5rem 6rem;
+    grid-template-columns:
+      [full-start] minmax(0,1fr)
+      [wide-start] minmax(0,min(100%,62rem))
+      [wide-end] minmax(0,1fr) [full-end];
+  }
+  .wrap > *{grid-column:wide}
+  .txt{max-width:var(--measure)}
+
+  h1,h2,h3,.eyebrow,th,.chip,.tag,.num{
+    font-family:"IBM Plex Sans Condensed",system-ui,-apple-system,sans-serif;
+  }
+  h1{font-size:clamp(2.6rem,6vw,4rem); line-height:1.02; font-weight:700;
+     letter-spacing:-.018em; margin:0; text-wrap:balance}
+  h2{font-size:1.6rem; font-weight:600; letter-spacing:-.008em; margin:0;
+     text-wrap:balance}
+  h3{font-size:1.06rem; font-weight:600; margin:0 0 .35rem;
+     letter-spacing:-.003em}
+  p{margin:0 0 1rem}
+  a{color:var(--accent)}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace; font-size:.88em}
+  code{background:var(--sunk); padding:.1em .34em; border-radius:3px}
+  strong{font-weight:600}
+
+  .eyebrow{
+    font-size:.72rem; font-weight:600; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--ink-3);
+  }
+
+  /* ---- masthead ---- */
+  header{padding:4.5rem 0 2.25rem; border-bottom:2px solid var(--ink)}
+  .lede{
+    font-size:1.24rem; line-height:1.5; color:var(--ink-2);
+    max-width:52ch; margin:1.4rem 0 0;
+  }
+  .meta{
+    display:flex; flex-wrap:wrap; gap:.4rem 2rem; margin-top:2rem;
+    font-family:"IBM Plex Mono",monospace; font-size:.76rem; color:var(--ink-3);
+  }
+  .meta b{color:var(--ink-2); font-weight:500}
+
+  /* ---- sections: the number is the reading order, which is real ---- */
+  section{padding:3.25rem 0 0}
+  .head{display:flex; gap:1rem; align-items:baseline; margin-bottom:1.4rem}
+  .head .n{
+    font-family:"IBM Plex Mono",monospace; font-size:.8rem; font-weight:500;
+    color:var(--accent); padding-top:.25rem; flex:none;
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* ---- the before/after spine ---- */
+  .swap{
+    display:grid; grid-template-columns:1fr auto 1fr; gap:0;
+    border:1px solid var(--rule); border-radius:4px; overflow:hidden;
+    background:var(--surface); margin:1.5rem 0;
+  }
+  .swap > div{padding:1.5rem 1.6rem}
+  .swap .mid{
+    display:grid; place-items:center; background:var(--sunk);
+    border-left:1px solid var(--rule); border-right:1px solid var(--rule);
+    font-family:"IBM Plex Mono",monospace; color:var(--ink-3); font-size:1.1rem;
+    padding:1.5rem .9rem;
+  }
+  .swap h3{display:flex; align-items:center; gap:.5rem}
+  .dot{width:9px; height:9px; border-radius:50%; flex:none}
+  .big{
+    font-family:"IBM Plex Sans Condensed",sans-serif; font-weight:700;
+    font-size:2.9rem; line-height:1; letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums; margin:.7rem 0 .2rem;
+  }
+  .big small{font-size:.95rem; font-weight:500; color:var(--ink-3); letter-spacing:0}
+  .swap ul{margin:.9rem 0 0; padding:0; list-style:none;
+           font-family:"IBM Plex Mono",monospace; font-size:.8rem;
+           color:var(--ink-2); display:grid; gap:.3rem;
+           font-variant-numeric:tabular-nums}
+  @media (max-width:720px){
+    .swap{grid-template-columns:1fr}
+    .swap .mid{border:0; border-top:1px solid var(--rule);
+               border-bottom:1px solid var(--rule); padding:.6rem}
+  }
+
+  /* ---- tables ---- */
+  .tablewrap{overflow-x:auto; margin:1.5rem 0; border:1px solid var(--rule);
+             border-radius:4px; background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:.86rem;
+        font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums}
+  th{
+    font-family:"IBM Plex Sans Condensed",sans-serif; font-size:.72rem;
+    font-weight:600; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--ink-3); text-align:right; padding:.85rem 1rem .6rem;
+    border-bottom:1px solid var(--rule); white-space:nowrap;
+  }
+  th:first-child,td:first-child{text-align:left}
+  td{padding:.6rem 1rem; text-align:right; border-bottom:1px solid var(--rule-soft);
+     white-space:nowrap}
+  tr:last-child td{border-bottom:0}
+  tbody tr.win td{background:var(--accent-soft)}
+  tbody tr.win td:first-child{font-weight:600}
+  caption{
+    caption-side:bottom; text-align:left; padding:.8rem 1rem;
+    font-family:"Source Serif 4",serif; font-size:.83rem; color:var(--ink-3);
+    border-top:1px solid var(--rule-soft); line-height:1.5;
+  }
+  .u{color:var(--ink-3)}
+
+  /* ---- figures ---- */
+  figure{margin:2rem 0; display:grid; gap:.75rem}
+  figure img{
+    width:100%; height:auto; display:block; border-radius:3px;
+    background:#fff; border:1px solid var(--rule);
+  }
+  figcaption{font-size:.87rem; color:var(--ink-2); max-width:74ch; line-height:1.55}
+  figcaption b{
+    font-family:"IBM Plex Sans Condensed",sans-serif; font-weight:600;
+    color:var(--ink); letter-spacing:.02em; font-size:.8rem;
+    text-transform:uppercase; margin-right:.5rem;
+  }
+
+  /* ---- callouts, chips ---- */
+  .note{
+    border-left:3px solid var(--accent); background:var(--surface);
+    padding:1.15rem 1.35rem; margin:1.5rem 0; border-radius:0 4px 4px 0;
+  }
+  .note.warnbox{border-left-color:var(--warn)}
+  .note h3{font-size:.78rem; text-transform:uppercase; letter-spacing:.09em;
+           color:var(--ink-3)}
+  .note p:last-child{margin-bottom:0}
+  .chips{display:flex; flex-wrap:wrap; gap:.45rem; margin:1.1rem 0 0}
+  .chip{
+    font-size:.74rem; font-weight:600; letter-spacing:.03em;
+    padding:.28rem .6rem; border-radius:99px; border:1px solid currentColor;
+    display:inline-flex; align-items:center; gap:.4rem;
+  }
+
+  /* ---- shape verdicts ---- */
+  .shapes{display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);
+          border-radius:4px; overflow:hidden; margin:1.5rem 0}
+  .shape{background:var(--surface); padding:1.25rem 1.4rem; display:grid;
+         grid-template-columns:auto 1fr auto; gap:.3rem 1rem; align-items:start}
+  .shape .glyph{grid-row:span 2}
+  .shape p{margin:0; font-size:.93rem; color:var(--ink-2); max-width:58ch}
+  .verdict{
+    font-family:"IBM Plex Sans Condensed",sans-serif; font-size:.72rem;
+    font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+    white-space:nowrap; padding-top:.2rem;
+  }
+
+  /* ---- slide kit ---- */
+  .kit{display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule);
+       border-radius:4px; overflow:hidden; margin:1.5rem 0}
+  .kit > div{background:var(--surface); padding:1.15rem 1.4rem;
+             display:grid; grid-template-columns:2.2rem 1fr; gap:.15rem .8rem}
+  .kit .n{font-family:"IBM Plex Mono",monospace; font-size:.8rem; color:var(--accent);
+          grid-row:span 2; padding-top:.15rem; font-variant-numeric:tabular-nums}
+  .kit .claim{font-weight:600; font-size:1rem}
+  .kit .src{font-family:"IBM Plex Mono",monospace; font-size:.76rem;
+            color:var(--ink-3)}
+
+  hr{border:0; border-top:1px solid var(--rule); margin:0}
+  footer{padding:3rem 0 0; color:var(--ink-3); font-size:.85rem}
+</style>
+
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Capstone · vision-based landing · experiment iteration 3</div>
+  <h1>The Centroid Swap</h1>
+  <p class="lede">Ryu et al. read the runway’s cross-track offset from two points.
+  Reading the whole mask instead cut mean error 35% and the worst frame by 4× —
+  and fixed an error curve that had been pointing the wrong way.</p>
+  <div class="meta">
+    <span><b>Dataset</b> X-Plane 12 · 118 episodes · 50,820 frames</span>
+    <span><b>Split</b> test, n=567, airport-grouped</span>
+    <span><b>Detector</b> YOLOv8s-seg on BEV</span>
+    <span><b>Heading</b> from INS</span>
+  </div>
+</header>
+
+<section>
+  <div class="head"><span class="n">01</span><h2>What changed</h2></div>
+  <div class="txt">
+    <p>The estimator is unchanged from Ryu et al. (IJRR 44(6), 2024) in every
+    respect but one: <strong>which point it reads off the segmentation mask.</strong>
+    The paper takes the midpoint of the runway’s front edge — two points. This
+    iteration takes the polygon’s <strong>area centroid</strong> instead. Both lie
+    on the runway centre line, so the downstream geometry is identical; only the
+    robustness differs.</p>
+  </div>
+
+  <div class="swap">
+    <div>
+      <h3><span class="dot" style="background:var(--s-front)"></span>Before — two-point front edge</h3>
+      <div class="big">1.87 <small>m MAE</small></div>
+      <ul>
+        <li>RMSE 2.909 m</li>
+        <li>worst frame 18.69 m</li>
+        <li>error <em>rises</em> close in</li>
+      </ul>
+    </div>
+    <div class="mid">→</div>
+    <div>
+      <h3><span class="dot" style="background:var(--s-axis)"></span>After — polygon area centroid</h3>
+      <div class="big" style="color:var(--good)">1.22 <small>m MAE</small></div>
+      <ul>
+        <li>RMSE 1.478 m</li>
+        <li>worst frame 4.77 m</li>
+        <li>error <em>falls</em> close in</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="txt">
+    <p>For reference, the paper reports 1.779 m MAE / 2.380 m RMSE over eight
+    real flight tests. This pipeline now sits below that on synthetic data,
+    <em>without</em> the Kalman filter doing any of the work.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head"><span class="n">02</span><h2>The symptom: error pointed the wrong way</h2></div>
+  <div class="txt">
+    <p>Cross-track error from a distant object is <span class="mono">range · sin δψ</span> —
+    so it should <em>shrink</em> as the aircraft closes in. It did the opposite.
+    The two-point estimator was worst in the nearest range bin and best in the
+    farthest, which is a signal that something other than geometry is dominating.</p>
+  </div>
+  <figure>
+    <img src="figs/fig1_error_vs_range.png" alt="Cross-track MAE by range bin for three estimators. The two-point front edge rises from 1.69 m at 1000-1500 m to 2.50 m at 150-300 m; the min-area rectangle is non-monotonic; the polygon area centroid falls to 1.12 m at range and stays lowest throughout.">
+    <figcaption><b>Fig 1</b> Mean absolute cross-track error by range to threshold,
+    on predicted masks. The two-point rule degrades by 48% as the aircraft closes
+    from 1.4 km to 300 m. The centroid improves monotonically, which is what the
+    geometry predicts.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="head"><span class="n">03</span><h2>The diagnosis: a tail, not a bias</h2></div>
+  <div class="txt">
+    <p>It is not mask quality. The predicted mask’s area is within
+    <strong>0.3%</strong> of the label’s at every range, and its fitted width is
+    good to <strong>0.64 m</strong> inside 300 m. The <em>median</em> error of the
+    front-edge midpoint is flat with range too, at −0.9 to −1.4 m.</p>
+    <p>What grows is the <strong>tail</strong>. The worst frames put the threshold
+    midpoint 13–23 m off — about half a runway width (45 m ÷ 2 = 22.5 m). That is
+    the signature of the two-point rule latching onto a <em>partial</em> front
+    edge: read two points, and a clipped edge or a rounded corner slides their
+    midpoint by up to half a width.</p>
+  </div>
+  <figure>
+    <img src="figs/fig4_why_two_points.png" alt="Front-edge midpoint lateral error by range. The median stays near 1.6 m at all ranges; p90 grows from 2.3 m to 6.2 m as range closes; the worst frame reaches 22.8 m, at the half-runway-width reference line.">
+    <figcaption><b>Fig 2</b> Lateral error of the predicted front-edge midpoint.
+    The median is flat — the distribution’s tail is what grows. The worst frames
+    land exactly at half a runway width, which identifies the mechanism.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <div class="head"><span class="n">04</span><h2>Choosing the shape</h2></div>
+  <div class="txt">
+    <p>If two points are fragile, fit something to the whole mask. Three
+    candidates were considered; the BEV canvas keeps <strong>square metric
+    pixels</strong> by construction, which decides the question.</p>
+  </div>
+
+  <div class="shapes">
+    <div class="shape">
+      <span class="glyph mono" style="font-size:1.5rem;color:var(--ink-3)">◇</span>
+      <h3>Rhombus</h3>
+      <span class="verdict" style="color:var(--warn)">Rejected</span>
+      <p>A rhombus has four equal sides. A 45 × 2500 m runway is not remotely
+      that. A general parallelogram would only be correct under anisotropic BEV
+      scaling, which this pipeline deliberately does not have.</p>
+    </div>
+    <div class="shape">
+      <span class="glyph mono" style="font-size:1.5rem;color:var(--s-rect)">▭</span>
+      <h3>Smallest enclosing rectangle</h3>
+      <span class="verdict" style="color:var(--warn)">Partial</span>
+      <p>The right <em>shape</em> — in a metric BEV a runway is exactly a
+      rectangle — but the wrong <em>estimator</em>. It is a maximum statistic, set
+      by the outermost pixels, so it fixes the near field (2.50 → 2.08 m) and
+      degrades at range (1.69 → 2.34 m), where the mask’s far end is smeared.</p>
+    </div>
+    <div class="shape">
+      <span class="glyph mono" style="font-size:1.5rem;color:var(--s-axis)">✛</span>
+      <h3>Polygon area centroid</h3>
+      <span class="verdict" style="color:var(--good)">Adopted</span>
+      <p>Also on the centre line, but an <em>average</em> over the whole shape
+      rather than an extremum. Cross-track needs any point on the centre line —
+      not the threshold specifically — and far-end clipping, which every frame
+      here has, is laterally symmetric and so cannot bias it.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <h3>Why the area centroid, not the vertex mean</h3>
+    <p>Douglas–Peucker leaves vertices unevenly spaced, so a vertex mean
+    double-counts corners that happen to carry two nearby points. In the unit
+    test, two extra collinear vertices move the area centroid <strong>0.01 m</strong>
+    and the vertex mean <strong>104 m</strong>.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head"><span class="n">05</span><h2>Results</h2></div>
+  <figure>
+    <img src="figs/fig2_ablation.png" alt="Two bar panels. Mean absolute error: two-point front edge 1.87 m, min-area rectangle 1.87 m, polygon area centroid 1.22 m. Worst single frame: 18.69 m, 12.55 m, 4.77 m respectively.">
+    <figcaption><b>Fig 3</b> The mean barely separates the two-point rule from the
+    rectangle — the worst case separates all three. Robustness, not average
+    accuracy, is what the shape fit buys.</figcaption>
+  </figure>
+
+  <div class="tablewrap">
+    <table>
+      <caption>Cross-track error in metres, test split n=567, BEV segmentation,
+      heading from INS. The ablation ladder above the rule isolates Ryu et al.’s
+      three departures from the original estimator; the rows below vary only the
+      point read off the mask.</caption>
+      <thead>
+        <tr><th>Variant</th><th>Reads</th><th>Oracle</th><th>MAE</th>
+            <th>RMSE</th><th>Max</th><th>150–300</th><th>1000–1500</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>rect <span class="u">(prior estimator)</span></td><td class="u">whole polygon</td>
+            <td class="u">3.143</td><td>6.363</td><td>8.533</td><td>39.96</td><td>3.274</td><td>11.370</td></tr>
+        <tr><td>front</td><td class="u">2 points</td>
+            <td class="u">2.679</td><td>6.266</td><td>8.221</td><td>36.96</td><td>3.693</td><td>10.628</td></tr>
+        <tr><td>fitted_yaw</td><td class="u">2 points</td>
+            <td class="u">2.687</td><td>6.205</td><td>8.127</td><td>33.31</td><td>3.534</td><td>10.354</td></tr>
+        <tr><td>paper <span class="u">(Ryu et al.)</span></td><td class="u">2 points</td>
+            <td class="u">0.254</td><td>1.873</td><td>2.909</td><td>18.69</td><td>2.497</td><td>1.694</td></tr>
+        <tr><td>paper_rect</td><td class="u">min-area rect</td>
+            <td class="u">0.758</td><td>1.869</td><td>2.438</td><td>12.55</td><td>2.082</td><td>2.343</td></tr>
+        <tr class="win"><td>paper_axis</td><td class="u">area centroid</td>
+            <td class="u">1.118</td><td>1.224</td><td>1.478</td><td>4.77</td><td>1.530</td><td>1.120</td></tr>
+        <tr class="win"><td>paper_axis + Kalman</td><td class="u">area centroid</td>
+            <td class="u">—</td><td>1.224</td><td>1.452</td><td>3.52</td><td>1.529</td><td>1.172</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <div class="head"><span class="n">06</span><h2>What limits what</h2></div>
+  <div class="txt">
+    <p>The oracle — the ground-truth label pushed through the same estimator — is
+    the floor no detector can beat. Reading it alongside the predicted result
+    says which half of the pipeline is the bottleneck, and the answer inverts
+    between the two variants.</p>
+  </div>
+  <figure>
+    <img src="figs/fig3_oracle_gap.png" alt="Dumbbell chart. Two-point front edge: oracle 0.25 m to predicted 1.87 m, gap 1.62 m. Min-area rectangle: 0.76 to 1.87, gap 1.11 m. Polygon area centroid: 1.12 to 1.22, gap 0.11 m.">
+    <figcaption><b>Fig 4</b> Hollow marker = oracle floor, filled = predicted.
+    The two-point rule sits 7× above its own floor — detector-limited. The
+    centroid lands within 0.11 m of its floor — geometry-limited.</figcaption>
+  </figure>
+  <div class="txt">
+    <p>The centroid trades accuracy on a <em>perfect</em> mask for robustness on a
+    <em>real</em> one, and that trade pays because real masks are what the system
+    gets. But its worse floor is worth explaining, because it is not a property of
+    the method.</p>
+  </div>
+
+  <figure>
+    <img src="figs/fig5_label_lever.png" alt="Scatter of measured centroid offset against lever times sine of label rotation, hugging the identity line. r = +0.999, slope 0.99, label rotation 0.235 degrees, lever 309 m.">
+    <figcaption><b>Fig 5</b> The centroid’s 1.12 m floor is a <em>label</em>
+    defect. The label quads are rotated 0.235° from the true runway axis, and the
+    centroid sits 309 m down the runway where that rotation has a lever. Removing
+    it leaves 0.247 m — the same floor the front edge has. Clusters are individual
+    approaches, each with its own label rotation.</figcaption>
+  </figure>
+
+  <div class="note">
+    <h3>The headroom this exposes</h3>
+    <p>On correct geometry the centroid estimator is exact to <strong>0.007 m</strong>
+    in synthetic test. Fixing the label rotation would move <code>paper_axis</code>
+    from 1.22 m toward <strong>0.3 m</strong> — more headroom than any other change
+    currently on the roadmap.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head"><span class="n">07</span><h2>Three caveats to carry</h2></div>
+
+  <div class="note warnbox">
+    <h3>1 · Heading comes from the INS</h3>
+    <p>Every number above uses the true heading, as Ryu et al. do — they have an
+    INS and never claim to estimate heading from the camera. The camera-only
+    figure is <code>fitted_yaw</code> at <strong>6.21 m MAE</strong>. Do not quote
+    1.22 m against a camera-only baseline without saying so.</p>
+  </div>
+
+  <div class="note warnbox">
+    <h3>2 · The Kalman filter is now nearly redundant</h3>
+    <p>It moves MAE 1.224 → 1.224 m. Most of what it was buying on the two-point
+    estimator was absorbing exactly the outliers the shape fit now prevents. It
+    still trims the worst frame (4.77 → 3.52 m), which is where it earns its
+    place.</p>
+  </div>
+
+  <div class="note warnbox">
+    <h3>3 · This weakens the earlier “BEV beats perspective” claim</h3>
+    <p>The same swap takes the perspective arm from 4.833 → <strong>1.100 m</strong>
+    MAE, putting it back <em>ahead</em> of BEV’s 1.224 m. That earlier result was
+    substantially about which estimator tolerates a heavy-tailed mask, not about
+    the view. BEV keeps a far better worst case (4.8 m vs 36.1 m), so the honest
+    summary is now <em>“BEV is more robust, perspective is more accurate.”</em></p>
+  </div>
+
+  <div class="txt">
+    <p>One scope note: the centroid estimates cross-track only. Its along-track
+    output is the centroid’s position, not the threshold’s, so the range estimate
+    the paper also wants is given up. For a system judged on lateral guidance
+    that is the right trade, but it is a trade.</p>
+  </div>
+</section>
+
+<section>
+  <div class="head"><span class="n">08</span><h2>Slide kit</h2></div>
+  <div class="txt">
+    <p>Each claim below is carried by one figure. Figures are in
+    <code>experiments/bev_yolo/media/figs/</code> at 200 dpi on white.</p>
+  </div>
+  <div class="kit">
+    <div><span class="n">01</span><span class="claim">The error curve pointed the wrong way</span>
+      <span class="src">fig1_error_vs_range.png · 2.50 m near vs 1.69 m far</span></div>
+    <div><span class="n">02</span><span class="claim">It was a tail, not a bias — and the tail is half a runway width</span>
+      <span class="src">fig4_why_two_points.png · median flat, worst frame 22.8 m</span></div>
+    <div><span class="n">03</span><span class="claim">Reading the whole mask instead of two points fixes it</span>
+      <span class="src">fig2_ablation.png · MAE 1.87 → 1.22 m, worst 18.7 → 4.8 m</span></div>
+    <div><span class="n">04</span><span class="claim">The new estimator is geometry-limited, not detector-limited</span>
+      <span class="src">fig3_oracle_gap.png · gap 1.62 m → 0.11 m</span></div>
+    <div><span class="n">05</span><span class="claim">Its remaining floor is a label defect worth 0.9 m</span>
+      <span class="src">fig5_label_lever.png · 0.235° rotation, r = +0.999</span></div>
+  </div>
+  <div class="chips">
+    <span class="chip" style="color:var(--s-front)">two-point front edge</span>
+    <span class="chip" style="color:var(--s-rect)">min-area rectangle</span>
+    <span class="chip" style="color:var(--s-axis)">area centroid</span>
+  </div>
+</section>
+
+<footer>
+  <hr>
+  <p style="margin-top:1.5rem">Reproduce:
+  <code>python -m experiments.bev_yolo.ryu_eval --arm bev_seg --variant paper,paper_rect,paper_axis</code><br>
+  Figures: <code>python -m experiments.bev_yolo.figures --recompute</code> ·
+  Animations: <code>python -m experiments.bev_yolo.ryu_video --episode 000131 --variant paper,paper_axis</code><br>
+  Method after Ryu, Lim, Lee, Moon &amp; Kim, <em>An estimation method for
+  vision-based autonomous landing system for fixed wing aircraft</em>,
+  IJRR 44(6), 2024, §3.1.2.</p>
+</footer>
+
+</div>

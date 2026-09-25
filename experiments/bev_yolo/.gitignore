@@ -6,6 +6,10 @@ runs*/
 # build_dataset.py warns when the two disagree, but only if this is absent.
 camera.json
 
+# Videos, GIFs and figure data from ryu_video.py / figures.py. Regenerable, and
+# binaries would bloat the history.
+media/
+
 # Rendered diagnostics. Also caught by the repo-root *.jpg rule; spelled out
 # here so this directory documents its own outputs.
 preview*.jpg
