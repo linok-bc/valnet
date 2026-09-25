@@ -373,7 +373,8 @@ def fitted_yaw_deg(poly_ground: np.ndarray):
 # ------------------------------------------------ section 3.1.2.5: the filter --
 
 def kalman_track(measurements, s_m, q: float = 1e-5, r: float = 4.0,
-                 p0: float = 1e3):
+                 p0: float = 1e3, gate: float = None, warmup: int = 3,
+                 max_misses: int = 3):
     """Constant-velocity Kalman filter over ONE approach, the paper's 3.1.2.5.
 
     The paper filters the lateral estimate with a first-order Kalman filter and
@@ -407,6 +408,17 @@ def kalman_track(measurements, s_m, q: float = 1e-5, r: float = 4.0,
             the filtered track lags the truth, lower it if it stays noisy.
         r: measurement noise, m^2. 4.0 = a 2 m one-sigma frame.
         p0: initial covariance; large enough to let the first measurement in.
+        gate: innovation gate, in squared standard deviations (9.0 = 3 sigma).
+            A measurement whose innovation y satisfies y^2 / S > gate is
+            treated as a dropout: the filter predicts through it without
+            updating. None (the default) accepts everything, as before.
+        warmup: accepted measurements before the gate switches on. Early on
+            the prediction is still mostly prior, so it cannot judge anything.
+        max_misses: consecutive rejections after which the filter concludes it
+            is the one that is lost, not the measurements, and re-acquires:
+            it resets its covariance and accepts the next measurement. Without
+            this, a filter that locked onto one bad early frame would reject
+            every good frame after it.
     """
     z = np.asarray(measurements, dtype=np.float64)
     s = np.asarray(s_m, dtype=np.float64)
@@ -418,6 +430,7 @@ def kalman_track(measurements, s_m, q: float = 1e-5, r: float = 4.0,
     P = np.diag([p0, p0])
     H = np.array([[1.0, 0.0]])
     started = False
+    accepted, misses = 0, 0
     for i in range(len(z)):
         if started and i > 0:
             dt = max(float(s[i] - s[i - 1]), 1e-6)
@@ -430,10 +443,22 @@ def kalman_track(measurements, s_m, q: float = 1e-5, r: float = 4.0,
         if np.isfinite(z[i]):
             y = z[i] - (H @ x)[0]
             S = (H @ P @ H.T)[0, 0] + r
+            if gate is not None and accepted >= warmup and y * y / S > gate:
+                misses += 1
+                if misses > max_misses:        # lost: re-acquire on this frame
+                    P = np.diag([p0, p0])
+                    S = (H @ P @ H.T)[0, 0] + r
+                    accepted, misses = 0, 0
+                else:
+                    if started:
+                        out[i] = x[0]
+                    continue
             K = (P @ H.T / S).ravel()
             x = x + K * y
             P = (np.eye(2) - np.outer(K, H)) @ P
             started = True
+            accepted += 1
+            misses = 0
         if started:
             out[i] = x[0]
     return out

@@ -1,0 +1,4 @@
+# Evaluation results (per-frame JSON, tens of MB) and diagnostic figures.
+# Regenerable from the scripts here; binaries would bloat the history.
+runs/
+media/
