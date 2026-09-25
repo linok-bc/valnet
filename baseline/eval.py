@@ -8,8 +8,11 @@ Reports the same metric twice, on purpose:
   2. valnet/evaluate_map.py — the harness VALNet's numbers come from. Only
      these are directly comparable to a VALNet run.
 
-If the two disagree by much, the shared harness is what needs investigating,
-not the model. That is worth knowing before it is used to judge VALNet.
+The harness reports mask mAP at two resolutions. Its `proto` numbers use the
+same 1/4-resolution mask IoU as Ultralytics and should closely match (1);
+its headline numbers score masks at the full 640 input and come out much
+lower on thin, distant runways. If `proto` disagrees with (1), the harness
+needs investigating before it is used to judge VALNet.
 
 Usage:
     python baseline/eval.py --weights baseline/runs/controlled/weights/best.pt
@@ -80,9 +83,9 @@ def main():
     loader = build_loader(data_yaml, cli.split, cfg.imgsz, cli.batch, cli.workers)
     net = model.model.to(device).eval()
     m = evaluate_valnet(net, loader, device=device)
-    print(f"  mAP  : {m['mAP']:.4f}")
-    print(f"  AP50 : {m['AP50']:.4f}")
-    print(f"  AP75 : {m['AP75']:.4f}")
+    print(f"  {'':<6s} {'full-res':>9s} {'proto-res':>10s}")
+    for k in ("mAP", "AP50", "AP75"):
+        print(f"  {k:<6s} {m[k]:>9.4f} {m[k + '_proto']:>10.4f}")
     print("\nCompare the shared-harness numbers against VALNet; the native ones against the literature.")
 
 

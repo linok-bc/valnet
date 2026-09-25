@@ -44,6 +44,8 @@ def main():
     ap.add_argument("--epochs", type=int, default=None)
     ap.add_argument("--batch", type=int, default=None)
     ap.add_argument("--device", default=None)
+    ap.add_argument("--weights", default=None, help="starting checkpoint (default: config.yaml), e.g. yolo26s-seg.pt")
+    ap.add_argument("--fraction", type=float, default=None, help="of the train split; smoke tests only")
     cli = ap.parse_args()
 
     cfg = OmegaConf.load(Path(__file__).parent / "config.yaml")
@@ -57,6 +59,8 @@ def main():
         # nbs tracks batch in the controlled preset so accumulate stays 1
         if preset == "controlled":
             args["nbs"] = cli.batch
+    if cli.fraction is not None:
+        args["fraction"] = cli.fraction
     if cli.device is not None:
         args["device"] = cli.device
     args["name"] = cli.name or preset
@@ -65,7 +69,9 @@ def main():
     for k in sorted(args):
         print(f"  {k:<18s} {args[k]}")
 
-    model = YOLO(str(REPO / cfg.weights))
+    weights = cli.weights or str(REPO / cfg.weights)
+    print(f"  {'weights':<18s} {weights}")
+    model = YOLO(weights)
     model.train(**args)
 
     best = Path(args["project"], args["name"], "weights", "best.pt")

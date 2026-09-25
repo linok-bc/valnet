@@ -18,7 +18,8 @@ if __name__ == '__main__':
     """
     main_dir = Path(os.path.dirname(os.path.realpath(__file__)), '..').absolute()
     omegaCfgPath = Path(main_dir, 'configs/main.yaml')
-    omegaCfg = OmegaConf.load(omegaCfgPath)
+    # dotlist overrides, e.g. `python scripts/test.py test.checkpoint=checkpoints/x.pt`
+    omegaCfg = OmegaConf.merge(OmegaConf.load(omegaCfgPath), OmegaConf.from_cli())
     
     cfg = get_cfg() # from Ultralytics
     cfg.data = omegaCfg.data.config
@@ -27,7 +28,10 @@ if __name__ == '__main__':
     cfg.task = "segment"
     
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    valnet = VALNetModel.from_ultralytics(Path(main_dir, omegaCfg.yolov8_checkpoint), ch=(128, 256, 512))
+    valnet = VALNetModel.from_ultralytics(
+        Path(main_dir, omegaCfg.yolov8_checkpoint), ch=(128, 256, 512), nc=omegaCfg.data.num_classes,
+        **omegaCfg.model,
+    )
     valnet = valnet.to(device)
     
     # for v8SegmentationLoss; there are weights that can be adjusted
@@ -66,9 +70,9 @@ if __name__ == '__main__':
     # 4. Segmentation metrics, generation
     """
     seg_metrics = evaluate_valnet(valnet, test_loader)
-    print(f"mAP: {seg_metrics['mAP']:.3f}  "
-          f"AP50: {seg_metrics['AP50']:.3f}  "
-          f"AP75: {seg_metrics['AP75']:.3f}")
+    print(f"  {'':<6s} {'full-res':>9s} {'proto-res':>10s}")
+    for k in ("mAP", "AP50", "AP75"):
+        print(f"  {k:<6s} {seg_metrics[k]:>9.4f} {seg_metrics[k + '_proto']:>10.4f}")
     
     generate_test_masks(
         valnet,

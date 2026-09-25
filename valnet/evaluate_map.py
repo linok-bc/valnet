@@ -46,6 +46,7 @@ def compute_map_from_eval(
     max_det: int = 300,
     iou_range: tuple = (0.5, 0.95, 10),
     device: str = "cuda",
+    overlap_mask: bool = True,
 ):
     """
     Compute segmentation mAP using eval-mode head output.
@@ -71,9 +72,14 @@ def compute_map_from_eval(
         max_det:    max detections per image
         iou_range:  (start, stop, num_steps) for mAP IoU thresholds
         device:     device string
+        overlap_mask: GT mask layout, matching the dataloader's `overlap_mask`
+                    (Ultralytics' default, True): one [H, W] map per image
+                    whose value k marks the image's k-th instance. False means
+                    one binary [H, W] mask per instance.
 
     Returns:
-        dict with mAP, AP50, AP75, and per-class APs
+        dict with mAP, AP50, AP75 (full resolution), the same three suffixed
+        _proto (prototype resolution, Ultralytics-comparable), and per-class APs
     """
     model.eval()
     model.to(device)
@@ -83,9 +89,20 @@ def compute_map_from_eval(
     iou_thresholds = torch.linspace(iou_start, iou_stop, iou_steps)
     niou = len(iou_thresholds)
 
+    # Mask IoU is scored at two resolutions, from the same detections:
+    #   full  — predicted masks upsampled to the network input (640) and compared
+    #           against GT at that size. The strict one: boundary error on thin,
+    #           distant runways counts in full. This is the headline metric.
+    #   proto — both at the prototype resolution (1/4 of the input), which is
+    #           what Ultralytics' SegmentationValidator does. Lenient on thin
+    #           objects, but directly comparable to Ultralytics and the paper.
+    # Measured on a baseline checkpoint these differ by ~2x in mAP50-95, and
+    # shifting the full-res masks by +/-1..3 px only lowers IoU, so the gap is
+    # resolution, not misalignment.
     stats = {
-        "tp_m": [],   # mask true positives
-        "conf": [],   # confidence scores
+        "tp_m": [],        # mask true positives, full resolution
+        "tp_m_proto": [],  # mask true positives, prototype resolution
+        "conf": [],        # confidence scores
         "pred_cls": [],
         "gt_cls": [],
     }
@@ -116,6 +133,10 @@ def compute_map_from_eval(
         # by Ultralytics on this dataset has a 1-class head, and passing the
         # wrong nc here silently misreads the score/mask-coefficient split.
         nc_head = decoded.shape[1] - 4 - proto.shape[1]
+        # End-to-end heads (YOLO26) skip NMS and already return the final
+        # detections as [B, max_det, 6 + nm] = x1 y1 x2 y2 conf cls + coeffs;
+        # Ultralytics then only filters by confidence.
+        end2end = decoded.shape[-1] == 6 + proto.shape[1]
         nms_out = non_max_suppression(
             nms_input,
             conf_thres=conf_thres,
@@ -124,6 +145,7 @@ def compute_map_from_eval(
             classes=[0],
             multi_label=False,
             max_det=max_det,
+            end2end=end2end,
         )
         # nms_out: list of B tensors, each [n_det, 6+nm]
         #          columns: x1, y1, x2, y2, conf, cls, mask_coeff_0..mask_coeff_31
@@ -143,6 +165,7 @@ def compute_map_from_eval(
             if n_det == 0:
                 if n_gt > 0:
                     stats["tp_m"].append(np.zeros((0, niou), dtype=bool))
+                    stats["tp_m_proto"].append(np.zeros((0, niou), dtype=bool))
                     stats["conf"].append(torch.empty(0))
                     stats["pred_cls"].append(torch.empty(0))
                 continue
@@ -160,39 +183,66 @@ def compute_map_from_eval(
                 shape=imgsz,
                 upsample=True,
             )  # [n_det, H, W] uint8
+            pred_masks_proto = ops.process_mask(
+                proto[si], mask_coeffs, pred_boxes, shape=imgsz, upsample=False,
+            )  # [n_det, Hp, Wp] uint8
 
             stats["conf"].append(pred_conf.cpu())
             stats["pred_cls"].append(pred_cls.cpu())
 
             if n_gt == 0:
                 stats["tp_m"].append(np.zeros((n_det, niou), dtype=bool))
+                stats["tp_m_proto"].append(np.zeros((n_det, niou), dtype=bool))
                 continue
 
             # --- Ground truth masks for this image ---
-            gt_masks_i = gt_masks[idx]  # [n_gt, H, W]
+            if overlap_mask:
+                # Unpack the per-image index map. Ultralytics sorts the image's
+                # labels so that label k owns mask value k + 1.
+                index = torch.arange(1, n_gt + 1, device=device).view(n_gt, 1, 1)
+                gt_masks_i = (gt_masks[si] == index).float()  # [n_gt, H, W]
+            else:
+                gt_masks_i = gt_masks[idx]  # [n_gt, H, W]
 
-            # Resize GT masks to match prediction mask size if needed
-            if gt_masks_i.shape[1:] != pred_masks.shape[1:]:
-                gt_masks_i = F.interpolate(
-                    gt_masks_i.unsqueeze(0).float(),
-                    size=pred_masks.shape[1:],
-                    mode="bilinear",
-                    align_corners=False,
-                )[0].gt_(0.5).float()
+            for key, pm in (("tp_m", pred_masks), ("tp_m_proto", pred_masks_proto)):
+                # Resize GT masks to match prediction mask size if needed
+                gm = gt_masks_i
+                if gm.shape[1:] != pm.shape[1:]:
+                    gm = F.interpolate(
+                        gm.unsqueeze(0).float(),
+                        size=pm.shape[1:],
+                        mode="bilinear",
+                        align_corners=False,
+                    )[0].gt_(0.5).float()
 
-            # --- Mask IoU ---
-            iou = mask_iou(pred_masks.flatten(1).float(), gt_masks_i.flatten(1))
-            # --- Match predictions to ground truth ---
-            tp_m = _match_predictions(pred_cls, gt_cls_i, iou, iou_thresholds)
-            stats["tp_m"].append(tp_m)
+                # --- Mask IoU, then match predictions to ground truth ---
+                iou = mask_iou(pm.flatten(1).float(), gm.flatten(1))
+                stats[key].append(_match_predictions(pred_cls, gt_cls_i, iou, iou_thresholds))
 
     # --- Aggregate stats and compute mAP ---
-    return _compute_ap(stats, nc, niou, iou_thresholds)
+    metrics = _compute_ap(stats, nc, niou, iou_thresholds)
+    proto = _compute_ap({**stats, "tp_m": stats["tp_m_proto"]}, nc, niou, iou_thresholds)
+    for k in ("mAP", "AP50", "AP75"):
+        metrics[f"{k}_proto"] = proto[k]
+    return metrics
 
 
 def _match_predictions(pred_cls, gt_cls, iou, iou_thresholds):
     """
     Match predictions to ground truth at multiple IoU thresholds.
+
+    COCO-style greedy matching: detections are visited in descending confidence
+    (NMS already returns them in that order) and each takes the best-IoU ground
+    truth still unmatched. This is also what Ultralytics' match_predictions ends
+    up doing. Matching each GT to its highest-IoU detection instead marks the
+    confident-but-looser mask a false positive at the top of the ranking and
+    pushes the true positive down to a low confidence, which cost 0.08 mAP50-95
+    on a baseline checkpoint.
+
+    Args:
+        pred_cls: [n_det], sorted by descending confidence
+        gt_cls:   [n_gt]
+        iou:      [n_det, n_gt]
 
     Returns:
         np.ndarray of shape [n_det, n_iou_thresholds] (bool)
@@ -207,29 +257,16 @@ def _match_predictions(pred_cls, gt_cls, iou, iou_thresholds):
 
     # Only match same class
     correct_cls = pred_cls.unsqueeze(1) == gt_cls.unsqueeze(0)  # [n_det, n_gt]
+    iou = (iou * correct_cls.to(iou.device)).cpu().numpy()
 
-    for ti, thresh in enumerate(iou_thresholds):
-        # For each threshold, greedily match predictions to GT
-        matches = (iou >= thresh) & correct_cls.to(iou.device)  # [n_det, n_gt]
-
-        if matches.any():
-            # Find best matches (highest IoU)
-            # matches is [n_gt, n_det], iou is [n_gt, n_det]
-            matched_iou = matches.float() * iou
-            # For each detection, find best GT match
-            gt_match_vals, gt_match_idx = matched_iou.max(dim=1)  # [n_det]
-
-            # For each GT, only allow one detection (highest IoU)
-            used_gt = set()
-            # Sort detections by their match IoU descending
-            det_order = gt_match_vals.argsort(descending=True)
-            for di in det_order:
-                di = di.item()
-                if gt_match_vals[di] > 0:
-                    gi = gt_match_idx[di].item()
-                    if gi not in used_gt:
-                        tp[di, ti] = True
-                        used_gt.add(gi)
+    for ti, thresh in enumerate(iou_thresholds.tolist()):
+        used_gt = np.zeros(n_gt, dtype=bool)
+        for di in range(n_det):
+            cand = np.where(used_gt, -1.0, iou[di])
+            gi = int(cand.argmax())
+            if cand[gi] >= thresh:
+                tp[di, ti] = True
+                used_gt[gi] = True
 
     return tp
 

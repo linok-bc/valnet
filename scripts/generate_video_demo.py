@@ -181,9 +181,17 @@ def main():
 
     # Build model
     device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
-    model = VALNetModel.from_ultralytics(args.yolo_weights, ch=(128, 256, 512))
+    state = torch.load(args.checkpoint, map_location=device)
+    # The class count lives in the checkpoint: the head's class conv is [nc, c3, 1, 1]
+    nc = state["head.cv3.0.2.weight"].shape[0]
+    # ... and so does the architecture variant
+    arch = dict(
+        cem_depthwise=state["neck.cem_p3.lowpass_conv.weight"].shape[1] == 1,
+        afpn_stage1="neck.afpn.layer1_1.conv.weight" in state,
+    )
+    model = VALNetModel.from_ultralytics(args.yolo_weights, ch=(128, 256, 512), nc=nc, **arch)
     model.model = nn.ModuleList([model.backbone_p3, model.backbone_p4, model.backbone_p5, model.neck, model.head])
-    model.load_state_dict(torch.load(args.checkpoint, map_location=device))
+    model.load_state_dict(state)
     model.to(device)
     model.eval()
 

@@ -9,9 +9,10 @@ In the VALNet paper's own ablation (Table 9) the YOLOv8-seg baseline scores
 65.9 mAP and full VALNet scores 69.4 — a **+3.5 point** gain. Without that
 reference number measured on *our* data, a VALNet result is uninterpretable.
 
-It matters more here than it did for the authors. Of VALNet's 19.35M
-parameters, 11.47M (**59%**) are randomly initialized (CEM + AFPN + OAM); only
-the backbone and head carry COCO weights. The paper pretrained the whole
+It matters more here than it did for the authors. Of VALNet's 12.80M
+parameters (paper-size config; the full-width variant is 19.32M), 4.95M
+(**39%**) are randomly initialized (CEM + AFPN + OAM); only the backbone and
+head carry COCO weights. The paper pretrained the whole
 network on COCO first (§5.1.3, and Table 8 reports VALNet's COCO2017 results)
 and Table 5's 50-epoch recipe describes only the *fine-tuning* stage. We are
 skipping that pretraining, so undertrained modules could easily land VALNet

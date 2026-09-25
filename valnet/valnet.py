@@ -17,6 +17,8 @@ Training lives in scripts/train.py. VALNetModel is a plain nn.Module, so
 not start a training run.
 """
 
+import math
+
 import torch.nn as nn
 
 from valnet.afpn import AFPN
@@ -36,18 +38,18 @@ class VALNetNeck(nn.Module):
             -> 3 output feature maps for the head
     """
 
-    def __init__(self, ch=(128, 256, 512)):
+    def __init__(self, ch=(128, 256, 512), cem_depthwise=False, afpn_stage1=True):
         super().__init__()
         c3, c4, c5 = ch
 
         # One CEM per backbone scale
         # CEM operates on feature maps, not raw RGB, so in_channels = feature channels
-        self.cem_p3 = CEM(in_channels=c3, patch_size=8)
-        self.cem_p4 = CEM(in_channels=c4, patch_size=8)
-        self.cem_p5 = CEM(in_channels=c5, patch_size=4)
+        self.cem_p3 = CEM(in_channels=c3, patch_size=8, depthwise=cem_depthwise)
+        self.cem_p4 = CEM(in_channels=c4, patch_size=8, depthwise=cem_depthwise)
+        self.cem_p5 = CEM(in_channels=c5, patch_size=4, depthwise=cem_depthwise)
 
         # AFPN replaces PAFPN
-        self.afpn = AFPN(ch=ch)
+        self.afpn = AFPN(ch=ch, stage1=afpn_stage1)
 
     def forward(self, features):
         """
@@ -78,12 +80,16 @@ class VALNetModel(nn.Module):
         Input -> Backbone -> CEM (per scale) -> AFPN -> OAM (per scale) -> Head -> Output
     """
 
-    def __init__(self, backbone, head, ch=(128, 256, 512)):
+    def __init__(self, backbone, head, ch=(128, 256, 512), cem_depthwise=False, afpn_stage1=True):
         """
         Args:
             backbone: YOLOv8 backbone (extract from pretrained model)
             head: YOLOv8-seg head (extract from pretrained model)  
             ch: channel sizes at P3, P4, P5
+            cem_depthwise, afpn_stage1: architecture options, see CEM and AFPN.
+                The defaults build the full-width version (19.3M params);
+                cem_depthwise=True, afpn_stage1=False builds the paper-size
+                one (12.8M, vs 12.4M in the paper's Table 6).
         """
         super().__init__()
 
@@ -97,7 +103,7 @@ class VALNetModel(nn.Module):
         self.backbone_p4 = nn.Sequential(*list(backbone[5:7]))
         self.backbone_p5 = nn.Sequential(*list(backbone[7:10]))
         
-        self.neck = VALNetNeck(ch=ch)
+        self.neck = VALNetNeck(ch=ch, cem_depthwise=cem_depthwise, afpn_stage1=afpn_stage1)
         self.oams = nn.ModuleList(OAM(c) for c in ch)
         self.head = head
 
@@ -119,7 +125,7 @@ class VALNetModel(nn.Module):
         return seg_out
 
     @classmethod
-    def from_ultralytics(cls, model_name, ch):
+    def from_ultralytics(cls, model_name, ch, nc=None, **arch):
         """
         Extract backbone and head from a pretrained Ultralytics model.
 
@@ -128,6 +134,10 @@ class VALNetModel(nn.Module):
             ch: channel sizes at P3, P4, P5. Required — it depends on the
                 YOLOv8 variant, and getting it wrong builds a neck whose
                 channels silently disagree with the backbone.
+            nc: number of classes. None keeps the checkpoint's head (80 COCO
+                classes); otherwise the class branch is resized, see
+                `resize_head_classes`.
+            **arch: forwarded to __init__ (cem_depthwise, afpn_stage1).
 
         Usage:
             valnet = VALNetModel.from_ultralytics("yolov8s-seg.pt", ch=(128, 256, 512))
@@ -156,8 +166,35 @@ class VALNetModel(nn.Module):
         #
         # You'll need to split at the right index for your version.
 
+        head = m.model[-1]
+        if nc is not None and nc != head.nc:
+            resize_head_classes(head, nc)
+
         return cls(
             backbone=nn.Sequential(*list(m.model[:10])),
-            head=m.model[-1],
+            head=head,
             ch=ch,
+            **arch,
         )
+
+
+def resize_head_classes(head, nc):
+    """
+    Resize a pretrained Detect/Segment head to `nc` classes, in place.
+
+    Mirrors what Ultralytics does when it trains a COCO checkpoint on a dataset
+    with a different class count: every tensor whose shape still matches is
+    kept, which for YOLOv8s is everything except the final 1x1 conv of each
+    class branch (cv3[i][-1]). The hidden width of cv3 is
+    max(ch[0], min(nc, 100)) = 128 for both nc=80 and nc=1, so only that last
+    conv changes. It is re-initialized with PyTorch defaults and the same
+    prior bias as Detect.bias_init. This makes the head identical in shape
+    and initialization to the stock YOLOv8-seg baseline's.
+    """
+    for i, branch in enumerate(head.cv3):
+        old = branch[-1]
+        new = nn.Conv2d(old.in_channels, nc, 1).to(old.weight.device)
+        new.bias.data[:] = math.log(5 / nc / (640 / float(head.stride[i])) ** 2)
+        branch[-1] = new
+    head.nc = nc
+    head.no = nc + head.reg_max * 4

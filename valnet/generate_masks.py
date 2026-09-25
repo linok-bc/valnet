@@ -53,10 +53,12 @@ def generate_test_masks(
         seg_out = model(imgs)
         (decoded, proto), _ = seg_out
 
-        # NMS for segmentation
+        # NMS for segmentation. The head's class count comes from the tensor
+        # layout, decoded = [B, 4 + nc + nm, N], as in evaluate_map.py.
+        nc_head = decoded.shape[1] - 4 - proto.shape[1]
         nms_out = non_max_suppression(
             decoded, conf_thres=conf_thres, iou_thres=iou_thres,
-            nc=80, classes=[0], multi_label=False, max_det=max_det,
+            nc=nc_head, classes=[0], multi_label=False, max_det=max_det,
         )
 
         for si in range(bs):

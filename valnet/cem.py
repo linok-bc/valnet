@@ -9,23 +9,29 @@ class CEM(nn.Module):
     Fourier-based contextual enhancement of RGB images
     """
 
-    def __init__(self, in_channels: int = 3, sigma: int = 2, patch_size = 8):
+    def __init__(self, in_channels: int = 3, sigma: int = 2, patch_size = 8, depthwise: bool = False):
         super().__init__()
 
         """
         param[in] in_channels: the number of channels for input images
         param[in] sigma: standard deviation for the Gaussian kernel from eq. 2
         param[in] patch_size: patch size for heatmap; reference figure 9
+        param[in] depthwise: make the low-pass and high-pass 3x3 convs depthwise
+            (one filter per channel). Filtering acts per channel, so a full CxC
+            conv adds channel mixing the paper does not ask for, and is nearly
+            all of CEM's 6.2M params at YOLOv8s widths. The paper's total (12.4M,
+            Table 6) is only reachable with a CEM this light.
         """
 
         self.in_channels = in_channels
 
         self.patch_size = patch_size
 
-        self.lowpass_conv = nn.Conv2d(self.in_channels, self.in_channels, 3, padding=1)
+        groups = self.in_channels if depthwise else 1
+        self.lowpass_conv = nn.Conv2d(self.in_channels, self.in_channels, 3, padding=1, groups=groups)
         self.lowpass_pool = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
         self.spatial_attention_kernel = nn.Conv2d(2, 1, 3, padding=1)
-        self.highpass_kernel = nn.Conv2d(self.in_channels, self.in_channels, 3, padding=1)
+        self.highpass_kernel = nn.Conv2d(self.in_channels, self.in_channels, 3, padding=1, groups=groups)
 
 
 

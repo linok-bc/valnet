@@ -10,20 +10,34 @@ optim:
   final_lr: 0.0001        # cosine floor (= initial_lr * 0.01, matching Ultralytics' lrf)
   momentum: 0.937
   weight_decay: 0.0005    # applied to conv/linear weights only, not norms or biases
-  # Per-part LR multipliers. The backbone is pretrained on COCO and its features
-  # stay valid, so it moves slowly. The CEM+AFPN neck and OAM are randomly
-  # initialized and need the full rate. The head is pretrained but now reads from
-  # a random neck, so its weights are only a partial prior — middle ground.
-  backbone_lr_mult: 0.1
+  # Per-part LR multipliers on initial_lr. All 1.0 = the paper's single LR
+  # (Table 5), which is also what the `controlled` baseline uses. Lowering
+  # backbone/head (e.g. 0.1 / 0.5) protects the pretrained weights while the
+  # randomly initialized CEM+AFPN+OAM catch up; not in the paper.
+  backbone_lr_mult: 1.0
   neck_lr_mult: 1.0
-  head_lr_mult: 0.5
+  head_lr_mult: 1.0
   warmup_epochs: 3.0      # linear LR warmup; protects the pretrained backbone
   warmup_momentum: 0.8    # momentum ramps to `momentum` over the same window
   grad_clip: 10.0         # max grad norm; 0 disables
 yolov8_checkpoint: 'checkpoints/yolov8s-seg.pt'
+model:
+  # Paper size (Table 6: 12.4M params). Both False/True = full width, 19.3M.
+  cem_depthwise: True     # per-channel low/high-pass convs in CEM (-6.2M)
+  afpn_stage1: False      # AFPN's per-scale 1x1 projections before fusion (-0.35M)
 train:
   epochs: 50
   batch_size: 12
+  fraction: 1.0           # fraction of the train split to use; <1 only for smoke tests
+  # Mosaic composites 4 images into one. 0 = off (the paper-matched `controlled`
+  # recipe); 1.0 = Ultralytics' default, as in the `stock` baseline. Horizontal
+  # flips stay off regardless: they mirror cross-track.
+  mosaic: 0.0
+  close_mosaic: 10        # turn mosaic off for the last N epochs (Ultralytics default)
+  fliplr: 0.0             # horizontal flip probability; keep 0 for xp12 (mirrors cross-track)
+  freeze: []              # parts to freeze: any of backbone, neck, head (neck includes OAM)
+  init_from: null         # VALNet state_dict to start from, e.g. a COCO-pretrained one
+  ckpt_dir: 'checkpoints'
   amp: True               # mixed precision (CUDA only)
   ema_decay: 0.9999       # EMA of weights; validated and checkpointed instead of raw
   num_workers: 12  # num. of workers PER dataloader

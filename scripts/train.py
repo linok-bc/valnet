@@ -1,6 +1,7 @@
 import os
 import sys
 import math
+from copy import copy
 from tqdm import tqdm
 from pathlib import Path
 from omegaconf import OmegaConf
@@ -14,7 +15,7 @@ from ultralytics.data.utils import check_det_dataset
 from ultralytics.utils.loss import v8SegmentationLoss
 from ultralytics.cfg import get_cfg
 
-from valnet.valnet import VALNetModel
+from valnet.valnet import VALNetModel, resize_head_classes
 from valnet.evaluate_map import evaluate_valnet
 from valnet.ema import ModelEMA
 
@@ -23,23 +24,52 @@ from valnet.ema import ModelEMA
 """
 main_dir = Path(os.path.dirname(os.path.realpath(__file__)), '..').absolute()
 omegaCfgPath = Path(main_dir, 'configs/main.yaml')
-omegaCfg = OmegaConf.load(omegaCfgPath)
+# dotlist overrides, e.g. `python scripts/train.py train.epochs=1 train.fraction=0.05`
+omegaCfg = OmegaConf.merge(OmegaConf.load(omegaCfgPath), OmegaConf.from_cli())
 
 cfg = get_cfg() # from Ultralytics
 cfg.data = omegaCfg.data.config
 cfg.imgsz = omegaCfg.data.image_size
 cfg.batch = omegaCfg.train.batch_size
 cfg.task = "segment"
-cfg.fliplr = 0.0    # horizontal flip mirrors the runway, invalidating downstream geometry
-cfg.mosaic = 0.0    # mosaic composites 4 images from different viewpoints
+cfg.fliplr = omegaCfg.train.fliplr  # 0 for xp12: a flip mirrors cross-track
+cfg.mosaic = omegaCfg.train.mosaic  # composites 4 images; see configs/main.yaml
+cfg.fraction = omegaCfg.train.fraction  # of the train split; <1 only for smoke tests
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-valnet = VALNetModel.from_ultralytics(Path(main_dir, omegaCfg.yolov8_checkpoint), ch=(128, 256, 512))
+init_from = omegaCfg.train.init_from
+# When starting from a VALNet checkpoint, build the head at the checkpoint's
+# class count first (80 after COCO pretraining) and resize after loading.
+valnet = VALNetModel.from_ultralytics(
+    Path(main_dir, omegaCfg.yolov8_checkpoint), ch=(128, 256, 512),
+    nc=None if init_from else omegaCfg.data.num_classes,
+    **omegaCfg.model,
+)
 valnet = valnet.to(device)
 
 # for v8SegmentationLoss; there are weights that can be adjusted
 valnet.args = get_cfg()
 valnet.model = nn.ModuleList([valnet.backbone_p3, valnet.backbone_p4, valnet.backbone_p5, valnet.neck, valnet.head])
+
+if init_from:
+    valnet.load_state_dict(torch.load(Path(main_dir, init_from), map_location=device))
+    if valnet.head.nc != omegaCfg.data.num_classes:
+        resize_head_classes(valnet.head, omegaCfg.data.num_classes)
+    print(f"initialized from {init_from}")
+
+# Freeze whole parts, e.g. [backbone, head] to pretrain only CEM+AFPN+OAM.
+# Their BatchNorm layers are also held in eval mode every epoch (see the
+# training loop), so running statistics stay at their pretrained values.
+FREEZABLE = {
+    "backbone": [valnet.backbone_p3, valnet.backbone_p4, valnet.backbone_p5],
+    "neck": [valnet.neck, valnet.oams],
+    "head": [valnet.head],
+}
+frozen = [m for part in omegaCfg.train.freeze for m in FREEZABLE[part]]
+for m in frozen:
+    m.requires_grad_(False)
+if frozen:
+    print(f"frozen: {list(omegaCfg.train.freeze)}")
 
 """
 # 2. Build datasets, dataloaders, and validators using Ultralytics
@@ -172,7 +202,7 @@ scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 # weights are only ever used to compute gradients.
 ema = ModelEMA(valnet, decay=omegaCfg.train.ema_decay)
 
-ckpt_dir = Path(main_dir, "checkpoints")
+ckpt_dir = Path(main_dir, omegaCfg.train.ckpt_dir)
 os.makedirs(ckpt_dir, exist_ok=True)
 
 print(f"{iters_per_epoch} iters/epoch, {total_iters} total, "
@@ -190,6 +220,18 @@ global_iter = 0
 
 for epoch in tqdm(range(omegaCfg.train.epochs), desc="Training epoch", file=sys.stdout):
     valnet.train()
+    # Frozen parts keep their BN statistics. Only the BN layers go to eval:
+    # the Segment head's forward switches output format on .training.
+    for m in frozen:
+        for bn in m.modules():
+            if isinstance(bn, nn.BatchNorm2d):
+                bn.eval()
+
+    # Finish on un-mosaicked images, as Ultralytics' trainer does (close_mosaic)
+    if cfg.mosaic > 0 and epoch == omegaCfg.train.epochs - omegaCfg.train.close_mosaic:
+        train_dataset.close_mosaic(hyp=copy(cfg))
+        train_loader.reset()
+        tqdm.write(f"epoch {epoch + 1}: mosaic off for the last {omegaCfg.train.close_mosaic} epochs")
     epoch_loss = 0.0
 
     for batch_i, batch in tqdm(
@@ -246,7 +288,8 @@ for epoch in tqdm(range(omegaCfg.train.epochs), desc="Training epoch", file=sys.
     if (epoch + 1) % omegaCfg.train.val_freq == 0:
         metrics = evaluate_valnet(ema.ema, val_loader)
         val_map, val_ap50, val_ap75 = metrics['mAP'], metrics['AP50'], metrics['AP75']
-        tqdm.write(f"Validation mAP: {val_map}, AP@50: {val_ap50}, AP@75: {val_ap75}")
+        tqdm.write(f"Validation mAP: {val_map}, AP@50: {val_ap50}, AP@75: {val_ap75} "
+                   f"(proto-res mAP {metrics['mAP_proto']:.4f})")
 
         epochs.append(epoch+1)
         val_mAP.append(val_map)
@@ -256,6 +299,8 @@ for epoch in tqdm(range(omegaCfg.train.epochs), desc="Training epoch", file=sys.
         writer.add_scalar("Val/mAP", val_map, epoch)
         writer.add_scalar("Val/AP50", val_ap50, epoch)
         writer.add_scalar("Val/mAP75", val_ap75, epoch)
+        writer.add_scalar("Val/mAP_proto", metrics["mAP_proto"], epoch)
+        writer.add_scalar("Val/AP50_proto", metrics["AP50_proto"], epoch)
 
         # Track the best epoch — without this the only recoverable weights are
         # whatever the last periodic save happened to catch.
@@ -266,7 +311,7 @@ for epoch in tqdm(range(omegaCfg.train.epochs), desc="Training epoch", file=sys.
     
     writer.flush()
 
-print(f"Training complete — best val mAP {best_map:.4f} (checkpoints/valnet_best.pt)")
+print(f"Training complete — best val mAP {best_map:.4f} ({Path(ckpt_dir, 'valnet_best.pt')})")
 writer.close()
 
 plt.plot(epochs, val_mAP, label = "val mAP")

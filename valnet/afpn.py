@@ -11,8 +11,11 @@ Architecture:
     adjacent layers and gradually incorporating high-level features into the
     fusion process" (p. 16).
 
-    First stage:
+    First stage (optional, `stage1=True`):
         P3, P4, P5 -> ConvBNSiLU -> H1, H2, H3
+    Without it, H1, H2, H3 are P3, P4, P5 unchanged. The 1x1s re-project each
+    scale at its own width, and every fusion block already ends in a
+    channel-mixing 3x3, so dropping them saves 0.35M params / 0.63 GFLOPs.
 
     Second stage — fuse the adjacent low-level pair (H1, H2), at both scales:
         H1, H2 -> Ha        Ha at H1 scale (P3)
@@ -123,15 +126,15 @@ class AFPN(nn.Module):
     See the module docstring for the fusion order and why it starts low-level.
     """
 
-    def __init__(self, ch=(128, 256, 512)):
+    def __init__(self, ch=(128, 256, 512), stage1=True):
         """ Make sure that these channels are right """
         super().__init__()
         c3, c4, c5 = ch
 
-        # Stage 1: per-scale projection
-        self.layer1_1 = ConvBNSiLU(c3, c3)
-        self.layer1_2 = ConvBNSiLU(c4, c4)
-        self.layer1_3 = ConvBNSiLU(c5, c5)
+        # Stage 1: per-scale projection, or pass-through when disabled
+        self.layer1_1 = ConvBNSiLU(c3, c3) if stage1 else nn.Identity()
+        self.layer1_2 = ConvBNSiLU(c4, c4) if stage1 else nn.Identity()
+        self.layer1_3 = ConvBNSiLU(c5, c5) if stage1 else nn.Identity()
 
         # Stage 2: fuse the adjacent low-level pair (P3, P4)
         self.layer2_1 = ASFFFuseBlock((c3, c4), c3)       # Ha, at P3 scale
