@@ -206,3 +206,6 @@ results.csv
 
 # Training results
 results/
+
+# joint demo: regenerable mask/heading/fusion caches
+experiments/joint_demo/cache/

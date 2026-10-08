@@ -1,0 +1,13 @@
+# Example Ultralytics dataset YAML — copy and edit paths for your machine.
+# Labels must live next to images as: <path>/labels/train|val|test (YOLO convention)
+# when train/val/test point at images/train|val|test under path.
+
+path: data/splits
+train: images/train
+val: images/val
+test: images/test
+
+names:
+  0: centerline
+  1: runway
+nc: 2

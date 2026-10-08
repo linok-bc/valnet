@@ -1,0 +1,9 @@
+# Quick training smoke run (ex-Colab CapstoneV2, ~8 epochs)
+model: yolo26n-seg.pt
+data: configs/data.example.yaml
+epochs: 8
+imgsz: 640
+batch: 16
+device: 0
+workers: 4
+save_period: 1

@@ -1,0 +1,347 @@
+<title>Cross-Track Bake-off</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@87,600;87,700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --ground: #f5f7f9;
+  --panel: #ffffff;
+  --ink: #141920;
+  --ink-2: #4f5a68;
+  --ink-3: #7a8491;
+  --rule: #d8dde4;
+  --grid: #e7eaee;
+  --accent: #1d3b5c;
+  --zone: #eceff3;
+  --samuel: #eb6834;
+  --tilt: #2a78d6;
+  --bev: #1baf7a;
+  --fused: #4a3aa7;
+  --truth: #141920;
+  --good-bg: #e8f1ea;
+  --good-ink: #1f5b33;
+  --display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #11151a; --panel: #181d24; --ink: #e7eaee; --ink-2: #a9b2be; --ink-3: #7f8996;
+    --rule: #2b323c; --grid: #232a33; --accent: #9dbbe0; --zone: #1d232b;
+    --samuel: #d95926; --tilt: #3987e5; --bev: #199e70; --fused: #9085e9; --truth: #e7eaee;
+    --good-bg: #17281d; --good-ink: #9fd6ae;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #11151a; --panel: #181d24; --ink: #e7eaee; --ink-2: #a9b2be; --ink-3: #7f8996;
+  --rule: #2b323c; --grid: #232a33; --accent: #9dbbe0; --zone: #1d232b;
+  --samuel: #d95926; --tilt: #3987e5; --bev: #199e70; --fused: #9085e9; --truth: #e7eaee;
+  --good-bg: #17281d; --good-ink: #9fd6ae;
+}
+body { background: var(--ground); color: var(--ink); font: 400 17px/1.55 var(--body); }
+.page { max-width: 1040px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 72px; }
+.read { max-width: 700px; }
+h1, h2, h3 { font-family: var(--display); font-stretch: 87%; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 2.9rem); font-weight: 700; line-height: 1.05; letter-spacing: -0.01em; }
+h2 { font-size: 1.45rem; font-weight: 700; margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--rule); }
+h3 { font-size: 1.05rem; font-weight: 600; margin-top: 28px; }
+p { margin: 12px 0; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.byline { color: var(--ink-2); margin-top: 12px; font-size: 15px; }
+.lede { font-size: 1.15rem; color: var(--ink-2); margin-top: 18px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.92em; }
+.chip { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: 0; }
+.dash { display: inline-block; width: 18px; border-top: 2px dashed var(--fused); margin-right: 6px; vertical-align: 4px; }
+.m-samuel { color: var(--samuel); } .m-tilt { color: var(--tilt); } .m-bev { color: var(--bev); } .m-fused { color: var(--fused); }
+
+.verdict { margin-top: 28px; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 22px 24px; }
+.verdict h2 { margin: 0; padding: 0; border: 0; font-size: 1.1rem; color: var(--accent); }
+.verdict ol { margin: 12px 0 0; padding-left: 22px; display: grid; gap: 10px; }
+.verdict li::marker { font-family: var(--mono); color: var(--ink-3); }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-top: 22px; }
+.stat { border-top: 3px solid var(--c); padding-top: 10px; }
+.stat .v { font: 600 1.7rem/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat .l { font-size: 14px; color: var(--ink-2); margin-top: 4px; }
+.stat .best { display: inline-block; font: 600 11px/1 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; background: var(--good-bg); color: var(--good-ink); padding: 3px 6px; border-radius: 3px; margin-left: 6px; vertical-align: 5px; }
+
+.tbl { overflow-x: auto; margin-top: 16px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 600 12px/1.3 var(--mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-2); }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.hl td { background: var(--good-bg); }
+
+figure { margin: 22px 0 0; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 16px 18px 12px; position: relative; }
+figcaption { font-size: 14px; color: var(--ink-2); margin-top: 8px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--ink-2); margin-bottom: 6px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--ink-2); font-family: var(--mono); font-size: 11px; }
+.tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--ground); font: 400 12px/1.4 var(--mono); padding: 6px 8px; border-radius: 4px; white-space: nowrap; }
+details { margin-top: 10px; font-size: 14px; }
+summary { cursor: pointer; color: var(--accent); }
+summary:focus-visible, a:focus-visible, video:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.videos { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 18px; margin-top: 18px; }
+@media (max-width: 520px) { .videos { grid-template-columns: 1fr; } }
+.vid { background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.vid video { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; background: #000; }
+.vid .cap { padding: 10px 14px 14px; font-size: 14px; color: var(--ink-2); }
+.vid .cap b { color: var(--ink); font-weight: 600; }
+
+.note { font-size: 15px; color: var(--ink-2); }
+ul.tight { padding-left: 20px; margin: 10px 0; display: grid; gap: 6px; }
+.next { counter-reset: n; list-style: none; padding: 0; display: grid; gap: 12px; margin-top: 14px; }
+.next li { counter-increment: n; display: grid; grid-template-columns: 28px 1fr; }
+.next li::before { content: counter(n); font: 600 14px/1.6 var(--mono); color: var(--accent); }
+</style>
+
+<div class="page">
+  <header class="read">
+    <div class="eyebrow">XP12 approach study · 25 Sep 2026</div>
+    <h1>Which camera method should estimate cross-track on final approach?</h1>
+    <p class="byline">Michael Lin and Samuel · 13 held-out X-Plane 12 approaches · truth from the rotation-fixed logs</p>
+    <p class="lede">We compared four ways of reading the aircraft's lateral offset from the runway centreline out of a single forward camera. Fusing Samuel's heading-and-offset filter with the edge-line tilt measurement is the most accurate inside 1&nbsp;km. On their own, the two methods are statistically tied there.</p>
+  </header>
+
+  <section class="verdict read" aria-labelledby="bl">
+    <h2 id="bl">Bottom line</h2>
+    <ol>
+      <li><b class="m-fused">Fused</b> (Samuel's filter + tilt) is best inside 1&nbsp;km: <span class="num" data-k="fusedMae"></span> mean error, against <span class="num" data-k="samuelMae"></span> for Samuel alone and <span class="num" data-k="tiltMae"></span> for tilt alone. It clearly beats tilt; against Samuel the gain is likely but not yet proven on 13 flights.</li>
+      <li><b class="m-samuel">Samuel</b> and <b class="m-tilt">tilt</b> alone are a statistical tie inside 1&nbsp;km. They fail on different flights, which is why fusing them helps.</li>
+      <li><b class="m-samuel">Samuel</b> is best beyond 1&nbsp;km and is the only method that also gives heading, at <span class="num" data-k="yawMae"></span> mean error from 1.5&nbsp;km.</li>
+      <li><b class="m-bev">Bird's-eye view</b> is out: about 2&nbsp;m off even when handed the true heading.</li>
+    </ol>
+  </section>
+
+  <div class="stats" aria-label="Cross-track mean absolute error, 150 to 1000 m, 13 flights">
+    <div class="stat" style="--c: var(--fused)"><div class="v" data-k="fusedMae"></div><div class="l">Fused <span class="best">best</span><br>mean error, 150–1000 m</div></div>
+    <div class="stat" style="--c: var(--samuel)"><div class="v" data-k="samuelMae"></div><div class="l">Samuel<br>mean error, 150–1000 m</div></div>
+    <div class="stat" style="--c: var(--tilt)"><div class="v" data-k="tiltMae"></div><div class="l">Edge-line tilt<br>mean error, 150–1000 m</div></div>
+    <div class="stat" style="--c: var(--samuel)"><div class="v" data-k="yawMae"></div><div class="l">Samuel heading<br>mean error, 150–1500 m</div></div>
+  </div>
+
+  <h2>The four methods</h2>
+  <p class="read">All four see the same camera frames. Three use the same stock YOLOv8 runway mask; BEV uses its own detector trained on warped images. Each is also given some flight data (the “known” inputs below), as on a real aircraft.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Method</th><th>How it reads cross-track</th><th>Also estimates</th><th>Known inputs it needs</th></tr></thead>
+      <tbody>
+        <tr><td><span class="chip" style="background:var(--samuel)"></span><b>Samuel</b></td><td>Renders the runway at a candidate heading and offset, adjusts both until it matches the mask; a kinematic filter tracks them over time</td><td>Heading</td><td>pitch, roll, height, along-track distance, runway width</td></tr>
+        <tr><td><span class="chip" style="background:var(--tilt)"></span><b>Edge-line tilt</b></td><td>How much the two runway edges lean in the image. Leaning depends on lateral offset but not on heading</td><td>—</td><td>pitch, roll, runway width</td></tr>
+        <tr><td><span class="chip" style="background:var(--bev)"></span><b>Bird's-eye view</b></td><td>Warps the image to a top-down view and reads the runway's front edge (Ryu et al., 2024), then a Kalman filter</td><td>—</td><td>pitch, roll, height, runway width, <b>true heading from the INS</b></td></tr>
+        <tr><td><span class="dash"></span><b>Fused</b></td><td>Samuel's filter, with tilt added as a second cross-track measurement each frame, weighted by how noisy tilt is at that range</td><td>Heading</td><td>same as Samuel</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Accuracy by distance to the runway</h2>
+  <p class="read">Mean cross-track error over the 13 held-out flights, by distance to the threshold. Scoring starts at 1&nbsp;km; the 1–1.5&nbsp;km band is shown for context only.</p>
+  <figure id="fig-range">
+    <div class="legend" aria-hidden="true">
+      <span><span class="dash"></span>Fused</span>
+      <span><span class="chip" style="background:var(--samuel)"></span>Samuel</span>
+      <span><span class="chip" style="background:var(--tilt)"></span>Edge-line tilt</span>
+    </div>
+    <svg id="chart-range" viewBox="0 0 960 330" role="img" aria-label="Mean cross-track error by distance band for fused, Samuel and tilt"></svg>
+    <figcaption>Fused is lowest in every scored band. Beyond 1&nbsp;km it is worse than Samuel alone because tilt gets noisy there. Limiting fusion to inside 1&nbsp;km is the obvious fix and is not yet tested.</figcaption>
+    <details><summary>Show as a table</summary><div class="tbl"><table id="tbl-range"></table></div></details>
+  </figure>
+
+  <h3>Flight by flight</h3>
+  <p class="read">Mean error per flight, 150–1000&nbsp;m. Samuel and tilt each have bad flights, but rarely the same ones. Fused usually lands at or below the better of the two.</p>
+  <figure id="fig-flights">
+    <div class="legend" aria-hidden="true">
+      <span><span class="chip" style="background:var(--fused)"></span>Fused</span>
+      <span><span class="chip" style="background:var(--samuel)"></span>Samuel</span>
+      <span><span class="chip" style="background:var(--tilt)"></span>Edge-line tilt</span>
+    </div>
+    <svg id="chart-flights" viewBox="0 0 960 470" role="img" aria-label="Per-flight mean cross-track error for fused, Samuel and tilt"></svg>
+    <figcaption id="cap-flights"></figcaption>
+    <details><summary>Show as a table</summary><div class="tbl"><table id="tbl-flights"></table></div></details>
+  </figure>
+
+  <h3>How sure are we?</h3>
+  <div class="tbl">
+    <table id="tbl-ci">
+      <thead><tr><th>Comparison, 150–1000 m</th><th class="n">Mean difference</th><th class="n">95% interval</th><th>Reading</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <p class="note read">A positive difference means the second method is more accurate. Intervals come from resampling the 13 flights (bootstrap), so they reflect flight-to-flight variation, not frame count.</p>
+
+  <h2>Heading</h2>
+  <p class="read">Only Samuel's method, and the fusion built on it, estimates heading relative to the runway. From 1.5&nbsp;km in, its mean error is <span class="num" data-k="yawMae"></span> (95% of frames within <span class="num" data-k="yawP95"></span>). Adding tilt does not change heading accuracy (<span class="num" data-k="yawFusedMae"></span>): tilt carries no heading information of its own.</p>
+
+  <h2>All four methods, on the two flights no model has seen</h2>
+  <p class="read">BEV's detector was trained on a different split and saw most of the 13 test flights in training. Only flights 145 and 146 (Gällivare, both runway directions) are unseen by every model, so the four-way comparison is limited to those two.</p>
+  <div class="tbl"><table id="tbl-two"></table></div>
+  <p class="note read">BEV is consistently about 2&nbsp;m right of the truth on both flights, even though it is given the true heading from the INS. With only two flights, treat this table as a demonstration, not a ranking. The 13-flight results above are the ones to rely on for the other three.</p>
+
+  <h2>Replays</h2>
+  <p class="read">One video per method, each playing flight 145 then flight 146. The camera view shows what each method reads from the image. The right side tracks cross-track (and heading, where estimated) against the truth as the aircraft descends.</p>
+  <div class="videos">
+    <div class="vid"><video controls preload="metadata" src="media/compare_fused.mp4" aria-label="Fused method replay"></video><div class="cap"><b class="m-fused">Fused</b> — Samuel's filter with tilt as a second cross-track measurement</div></div>
+    <div class="vid"><video controls preload="metadata" src="media/compare_samuel.mp4" aria-label="Samuel method replay"></video><div class="cap"><b class="m-samuel">Samuel</b> — joint heading and cross-track fit</div></div>
+    <div class="vid"><video controls preload="metadata" src="media/compare_tilt.mp4" aria-label="Edge-line tilt replay"></video><div class="cap"><b class="m-tilt">Edge-line tilt</b> — offset from how the runway edges lean</div></div>
+    <div class="vid"><video controls preload="metadata" src="media/compare_bev.mp4" aria-label="Bird's-eye view replay"></video><div class="cap"><b class="m-bev">Bird's-eye view</b> — top-down warp, front edge, true heading</div></div>
+  </div>
+
+  <h2>How this was scored</h2>
+  <div class="read">
+    <ul class="tight">
+      <li><b>Data.</b> X-Plane 12 approaches, 3° glideslope, captured from about 3&nbsp;km to 150&nbsp;m. Beyond 1.5&nbsp;km the aircraft is still turning onto the localizer, so the experiment starts at 1.5&nbsp;km. Heading is scored from 1.5&nbsp;km and cross-track from 1&nbsp;km.</li>
+      <li><b>Held out.</b> The 13 test flights were never used to train the runway detector shared by Samuel's method, tilt and fused. The tilt noise model used by the fusion was fitted on 10 separate validation flights, so nothing was tuned on the test flights.</li>
+      <li><b>Truth.</b> The logged position and heading, after this week's fix that removed a per-flight rotation of up to about 0.5° from the logs. Samuel's per-flight runway geometry was refitted on the fixed logs. A constant offset of about 0.25&nbsp;m between the logs and the runway as it appears in the images remains, so errors near 0.25&nbsp;m are partly that floor.</li>
+      <li><b>Filtering.</b> Samuel's and fused use Samuel's kinematic filter. Tilt uses a simple Kalman filter, and BEV uses the paper's. Unfiltered, tilt averages <span class="num" data-k="tiltRawMae"></span>, so the filter is not what separates the methods.</li>
+      <li><b>Not yet tested.</b> Noise in the known inputs (pitch, roll, height, along-track distance, runway width). That is where tilt, which needs the fewest inputs, should have an advantage.</li>
+    </ul>
+  </div>
+
+  <h2>Next steps</h2>
+  <ol class="next read">
+    <li><span><b>Fuse tilt only where it helps.</b> Choose the cut-off range on the validation flights, which should recover Samuel's accuracy beyond 1&nbsp;km while keeping the gain inside it.</span></li>
+    <li><span><b>Input-noise robustness.</b> Perturb pitch, roll, height, along-track distance and runway width for all three methods. This decides whether needing fewer inputs matters in practice.</span></li>
+    <li><span><b>More held-out flights.</b> Retrain BEV on the shared split so all four methods can be compared on all 13 flights, and firm up the fused-vs-Samuel result.</span></li>
+    <li><span><b>Real footage.</b> Run the fused method on real approach videos to check how it transfers beyond the simulator.</span></li>
+  </ol>
+</div>
+
+<script>
+const D = {"bins": ["150\u2013300", "300\u2013600", "600\u20131000", "1000\u20131500"], "by_bin": {"samuel": [0.3238144853412451, 0.37437795784970257, 0.6177503584301127, 1.867476257763062], "tilt": [0.3434306730995016, 0.35584699919442103, 0.6733044775507235, 3.2516678492620192], "fused": [0.25548598477274426, 0.2897003763865285, 0.5711306347230887, 2.2252608290885787], "tilt_raw": [0.34881660848996016, 0.34877047245153614, 0.6604893361408433, 3.3541993452343988]}, "overall_150_1000": {"samuel": {"mae": 0.4789306066873827, "p95": 1.2577691606546184, "max": 3.2288035936306017}, "tilt": {"mae": 0.5018389087268866, "p95": 1.4594894813593597, "max": 2.8625705218777133}, "fused": {"mae": 0.4149575570854265, "p95": 1.3918502939643875, "max": 2.4082340383811998}, "tilt_raw": {"mae": 0.4943205119683368, "p95": 1.5186747217447631, "max": 3.3011825815259677}}, "per_flight": [{"ep": "000135", "site": "EKAH 10R", "samuel": 0.29230841198468377, "tilt": 0.3042388506320361, "fused": 0.19809790287826498}, {"ep": "000136", "site": "EKAH 28L", "samuel": 0.35417138831196426, "tilt": 0.5634782125327498, "fused": 0.4263042704986532}, {"ep": "000138", "site": "EGAE 26", "samuel": 0.206667300875539, "tilt": 0.38287850510607696, "fused": 0.3174056946738161}, {"ep": "000139", "site": "CYYQ 33", "samuel": 0.6055007522510023, "tilt": 0.9348524540763644, "fused": 0.778085255143299}, {"ep": "000140", "site": "UWLL 02", "samuel": 0.8312502697570993, "tilt": 0.46771683046109536, "fused": 0.5322212874424962}, {"ep": "000141", "site": "UWLL 20", "samuel": 0.524702548567128, "tilt": 0.4767028287936423, "fused": 0.34828531490050013}, {"ep": "000143", "site": "UUOB 29", "samuel": 0.3192673152746723, "tilt": 0.5629002169882611, "fused": 0.46649288284645485}, {"ep": "000144", "site": "ETNT 26", "samuel": 0.31999554931167823, "tilt": 0.5005305689047785, "fused": 0.28143949635483606}, {"ep": "000145", "site": "ESGJ 01", "samuel": 0.23790819516066175, "tilt": 0.309988950738788, "fused": 0.177884364195868}, {"ep": "000146", "site": "ESGJ 19", "samuel": 0.2791210870285946, "tilt": 0.3970998912800152, "fused": 0.25063901609618766}, {"ep": "000148", "site": "EDDK 31R", "samuel": 0.9369759225972795, "tilt": 0.3949043356571583, "fused": 0.4782555162779956}, {"ep": "000149", "site": "EDDK 24", "samuel": 1.0070590717117118, "tilt": 0.8452548729588879, "fused": 0.8985970169838947}, {"ep": "000150", "site": "ESDF 01", "samuel": 0.35548873761356775, "tilt": 0.3981725114617965, "fused": 0.2660688811644623}], "ci_per_flight_diff": {"tilt-samuel": [0.020638652242005222, -0.11800539087271249, 0.14073250494284062], "samuel-fused": [0.0654338193068349, -0.022450999652569803, 0.16273445546847992], "tilt-fused": [0.08607247154884012, 0.03469775095402741, 0.13214138237871945]}, "wins": {"fused_vs_samuel": 9, "fused_vs_tilt": 10, "samuel_vs_tilt": 9, "n": 13}, "heading_150_1500": {"samuel": {"mae": 0.0549384674597183, "p95": 0.14077147064772288}, "fused": {"mae": 0.05511040108733856, "p95": 0.14477500964764317}}, "two_flights": [{"ep": "000145", "site": "ESGJ 01", "samuel": 0.23790819516066175, "tilt_raw": 0.29692962077734225, "fused": 0.177884364195868, "bev": 2.0610923713133116, "bev_bias": 2.0610923713133116}, {"ep": "000146", "site": "ESGJ 19", "samuel": 0.2791210870285946, "tilt_raw": 0.366006866129814, "fused": 0.25063901609618766, "bev": 1.9702641982213114, "bev_bias": 1.9702641982213114}], "tilt_noise": {"range_m": [225.0, 375.0, 525.0, 675.0, 825.0, 975.0, 1125.0, 1275.0, 1425.0], "rms_m": [0.3972674814299812, 0.3767264788513171, 0.9038046189848442, 1.0696436580609539, 0.9700823262113256, 1.045192757343841, 1.4897309051638845, 2.11232975023165, 2.8342974492209634], "fitted_on": "split_val", "n_frames": 2456}, "n_frames_13": 3147, "n_frames_scored": 1994};
+const M = {
+  fused:  { name: "Fused", v: "--fused", dash: "6 5" },
+  samuel: { name: "Samuel", v: "--samuel" },
+  tilt:   { name: "Edge-line tilt", v: "--tilt" },
+};
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const m2 = (x) => x.toFixed(2) + " m";
+const set = { fusedMae: m2(D.overall_150_1000.fused.mae), samuelMae: m2(D.overall_150_1000.samuel.mae),
+  tiltMae: m2(D.overall_150_1000.tilt.mae), tiltRawMae: m2(D.overall_150_1000.tilt_raw.mae),
+  yawMae: D.heading_150_1500.samuel.mae.toFixed(3) + "°", yawP95: D.heading_150_1500.samuel.p95.toFixed(2) + "°",
+  yawFusedMae: D.heading_150_1500.fused.mae.toFixed(3) + "°" };
+document.querySelectorAll("[data-k]").forEach((el) => { el.textContent = set[el.dataset.k]; });
+
+const NS = "http://www.w3.org/2000/svg";
+function el(tag, attrs, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function tipFor(fig) {
+  const t = document.createElement("div"); t.className = "tip"; t.hidden = true; fig.appendChild(t);
+  return {
+    show(evt, html) { t.innerHTML = html; t.hidden = false;
+      const r = fig.getBoundingClientRect(); let x = evt.clientX - r.left + 12, y = evt.clientY - r.top - 34;
+      x = Math.min(x, r.width - t.offsetWidth - 8); t.style.left = x + "px"; t.style.top = Math.max(4, y) + "px"; },
+    hide() { t.hidden = true; },
+  };
+}
+
+function drawRange() {
+  const svg = document.getElementById("chart-range"); svg.innerHTML = "";
+  // The y scale covers the three SCORED bands only; the 1-1.5 km values (up to
+  // 3.3 m) would flatten the differences that matter, so they are listed as
+  // labelled figures inside the grey band instead of plotted.
+  const W = 960, H = 330, L = 56, R = 20, T = 16, B = 44;
+  const n = D.bins.length, ns = n - 1, ymax = 0.8;
+  const x = (i) => L + (i + 0.5) * (W - L - R) / n;
+  const y = (v) => T + (1 - v / ymax) * (H - T - B);
+  const zx = x(ns) - (W - L - R) / n / 2, zw = (W - L - R) / n;
+  el("rect", { x: zx, y: T, width: zw, height: H - T - B, fill: css("--zone") }, svg);
+  el("text", { x: x(ns), y: T + 22, "text-anchor": "middle" }, svg, "not scored (off this scale)");
+  [...["fused", "samuel", "tilt"]].sort((a, b) => D.by_bin[a][ns] - D.by_bin[b][ns]).forEach((k, j) => {
+    const yy = T + 64 + j * 30;
+    el("line", { x1: zx + 26, x2: zx + 50, y1: yy - 4, y2: yy - 4, stroke: css(M[k].v), "stroke-width": 3,
+      "stroke-dasharray": M[k].dash || "none" }, svg);
+    el("text", { x: zx + 58, y: yy, fill: css("--ink") }, svg, `${M[k].name}  ${D.by_bin[k][ns].toFixed(2)} m`);
+  });
+  for (let v = 0; v <= ymax + 1e-9; v += 0.1) {
+    el("line", { x1: L, x2: zx, y1: y(v), y2: y(v), stroke: css("--grid"), "stroke-width": 1 }, svg);
+    el("text", { x: L - 8, y: y(v) + 4, "text-anchor": "end" }, svg, v.toFixed(1));
+  }
+  el("text", { x: 12, y: T + (H - T - B) / 2, transform: `rotate(-90 12 ${T + (H - T - B) / 2})`, "text-anchor": "middle" }, svg, "mean error (m)");
+  D.bins.forEach((b, i) => el("text", { x: x(i), y: H - B + 20, "text-anchor": "middle" }, svg, b + " m"));
+  el("text", { x: (L + W - R) / 2, y: H - 6, "text-anchor": "middle" }, svg, "distance to threshold");
+  const fig = document.getElementById("fig-range"), tip = tipFor(fig);
+  ["tilt", "samuel", "fused"].forEach((k) => {
+    const c = css(M[k].v), vals = D.by_bin[k].slice(0, ns);
+    el("path", { d: vals.map((v, i) => (i ? "L" : "M") + x(i) + " " + y(v)).join(" "), fill: "none", stroke: c,
+      "stroke-width": 2, "stroke-dasharray": M[k].dash || "none", "stroke-linejoin": "round" }, svg);
+    vals.forEach((v, i) => {
+      el("circle", { cx: x(i), cy: y(v), r: 5, fill: c, stroke: css("--panel"), "stroke-width": 2 }, svg);
+      const hit = el("circle", { cx: x(i), cy: y(v), r: 14, fill: "transparent" }, svg);
+      hit.addEventListener("mousemove", (e) => tip.show(e, `${M[k].name}<br>${D.bins[i]} m: ${v.toFixed(2)} m`));
+      hit.addEventListener("mouseleave", () => tip.hide());
+    });
+  });
+  // direct labels right of the last scored point, nudged apart so they never collide
+  const SHORT = { fused: "Fused", samuel: "Samuel", tilt: "Tilt" };
+  const ends = ["tilt", "samuel", "fused"].map((k) => ({ k, v: D.by_bin[k][ns - 1] })).sort((a, b) => a.v - b.v);
+  let prev = null;
+  ends.forEach((s) => { let yy = y(s.v) + 4; if (prev !== null && yy > prev - 14) yy = prev - 14; prev = yy;
+    el("text", { x: x(ns - 1) + 12, y: yy, fill: css("--ink") }, svg, `${SHORT[s.k]} ${s.v.toFixed(2)}`); });
+  // table
+  const tb = document.getElementById("tbl-range");
+  tb.innerHTML = `<thead><tr><th>Method</th>${D.bins.map((b) => `<th class="n">${b} m</th>`).join("")}</tr></thead><tbody>` +
+    ["fused", "samuel", "tilt"].map((k) => `<tr><td>${M[k].name}</td>${D.by_bin[k].map((v) => `<td class="n">${v.toFixed(2)}</td>`).join("")}</tr>`).join("") + "</tbody>";
+}
+
+function drawFlights() {
+  const svg = document.getElementById("chart-flights"); svg.innerHTML = "";
+  const rows = [...D.per_flight].sort((a, b) => a.fused - b.fused);
+  const W = 960, L = 170, R = 30, T = 10, rowH = 32, B = 40, H = T + rows.length * rowH + B;
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const xmax = 1.1, x = (v) => L + v / xmax * (W - L - R);
+  for (let v = 0; v <= xmax + 1e-9; v += 0.2) {
+    el("line", { x1: x(v), x2: x(v), y1: T, y2: H - B, stroke: css("--grid"), "stroke-width": 1 }, svg);
+    el("text", { x: x(v), y: H - B + 18, "text-anchor": "middle" }, svg, v.toFixed(1));
+  }
+  el("text", { x: (L + W - R) / 2, y: H - 4, "text-anchor": "middle" }, svg, "mean cross-track error, 150–1000 m (m)");
+  const fig = document.getElementById("fig-flights"), tip = tipFor(fig);
+  rows.forEach((r, i) => {
+    const cy = T + i * rowH + rowH / 2;
+    el("text", { x: L - 12, y: cy + 4, "text-anchor": "end", fill: css("--ink") }, svg, `${r.ep.slice(3)}  ${r.site}`);
+    const vs = ["samuel", "tilt", "fused"].map((k) => r[k]);
+    el("line", { x1: x(Math.min(...vs)), x2: x(Math.max(...vs)), y1: cy, y2: cy, stroke: css("--rule"), "stroke-width": 2 }, svg);
+    ["samuel", "tilt", "fused"].forEach((k) => {
+      const c = el("circle", { cx: x(r[k]), cy, r: k === "fused" ? 7 : 5.5, fill: css(M[k].v), stroke: css("--panel"), "stroke-width": 2 }, svg);
+      const hit = el("circle", { cx: x(r[k]), cy, r: 12, fill: "transparent" }, svg);
+      hit.addEventListener("mousemove", (e) => tip.show(e, `Flight ${r.ep} ${r.site}<br>${M[k].name}: ${r[k].toFixed(2)} m`));
+      hit.addEventListener("mouseleave", () => tip.hide());
+    });
+  });
+  const w = D.wins;
+  document.getElementById("cap-flights").textContent =
+    `Fused beats Samuel on ${w.fused_vs_samuel} of ${w.n} flights and tilt on ${w.fused_vs_tilt} of ${w.n}. Samuel alone beats tilt alone on ${w.samuel_vs_tilt} of ${w.n}. Sorted by fused error; hover a dot for its value.`;
+  const tb = document.getElementById("tbl-flights");
+  tb.innerHTML = `<thead><tr><th>Flight</th><th>Runway</th><th class="n">Fused</th><th class="n">Samuel</th><th class="n">Tilt</th></tr></thead><tbody>` +
+    rows.map((r) => `<tr><td class="num">${r.ep}</td><td>${r.site}</td><td class="n">${r.fused.toFixed(2)}</td><td class="n">${r.samuel.toFixed(2)}</td><td class="n">${r.tilt.toFixed(2)}</td></tr>`).join("") + "</tbody>";
+}
+
+function fillTables() {
+  const ci = D.ci_per_flight_diff;
+  const rows = [
+    ["Fused vs tilt", ci["tilt-fused"], "Fused is better"],
+    ["Fused vs Samuel", ci["samuel-fused"], "Fused is likely better; interval still includes zero"],
+    ["Samuel vs tilt", ci["tilt-samuel"], "Tied"],
+  ];
+  const sg = (v) => (v >= 0 ? "+" : "−") + Math.abs(v).toFixed(2);
+  document.querySelector("#tbl-ci tbody").innerHTML = rows.map(([a, [m, lo, hi], r]) =>
+    `<tr${lo > 0 ? ' class="hl"' : ""}><td>${a}</td><td class="n">${sg(m)} m</td><td class="n">${sg(lo)} to ${sg(hi)} m</td><td>${r}</td></tr>`).join("");
+  const two = D.two_flights;
+  const cols = [["fused", "Fused"], ["samuel", "Samuel"], ["tilt_raw", "Tilt"], ["bev", "BEV"]];
+  document.getElementById("tbl-two").innerHTML =
+    `<thead><tr><th>Flight</th>${cols.map(([, n]) => `<th class="n">${n}</th>`).join("")}<th class="n">BEV bias</th></tr></thead><tbody>` +
+    two.map((r) => `<tr><td><span class="num">${r.ep}</span> ${r.site}</td>${cols.map(([k]) => `<td class="n">${r[k].toFixed(2)} m</td>`).join("")}<td class="n">${r.bev_bias >= 0 ? "+" : "−"}${Math.abs(r.bev_bias).toFixed(2)} m</td></tr>`).join("") + "</tbody>";
+}
+
+function draw() { drawRange(); drawFlights(); }
+fillTables(); draw();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+new MutationObserver(draw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>

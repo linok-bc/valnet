@@ -1,0 +1,7 @@
+row 00021: mask valley 3.5 m/°  edge valley 14.5 m/°  pts L=34 R=34
+row 00022: mask valley 6.3 m/°  edge valley 14.5 m/°  pts L=31 R=32
+row 00024: mask valley 11.9 m/°  edge valley 14.2 m/°  pts L=39 R=32
+row 00025: mask valley 9.0 m/°  edge valley 14.2 m/°  pts L=38 R=45
+row 00027: mask valley 8.6 m/°  edge valley 13.9 m/°  pts L=46 R=54
+row 00028: mask valley 13.3 m/°  edge valley 13.3 m/°  pts L=55 R=55
+row 00029: mask valley 9.8 m/°  edge valley 8.3 m/°  pts L=116 R=95
