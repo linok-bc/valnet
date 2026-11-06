@@ -6,24 +6,24 @@ Layout produced by the collector's convert_to_yolo.py, one directory per episode
     000001/images/000000.jpg
     000001/labels/000000.txt "0 x1 y1 x2 y2 ..."  normalized, may be absent/empty
     000001/pose/000000.txt   "yaw pitch roll"     degrees
-    000001/position/000000.txt "along height right"  metres
+    000001/position/000000.txt "along height right"  meters
 
 Sign conventions, copied from DatasetCollector.py and NOT guessed:
 
     yaw    positive -> nose right of the runway heading
     pitch  positive -> nose up
     roll   positive -> right wing down
-    along  metres past the threshold, NEGATIVE on approach
-    height metres above the runway surface at the threshold
-    right  metres right of the centreline, facing down the runway
+    along  meters past the threshold, NEGATIVE on approach
+    height meters above the runway surface at the threshold
+    right  meters right of the centreline, facing down the runway
 
 The old (pre-regeneration) dataset wrote 42-point edge polygons and .png frames;
 the current one writes a 4-corner quad as .jpg. Both load here.
 """
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
-import math
 
 import numpy as np
 
@@ -37,7 +37,7 @@ DEFAULT_RUNWAYS_DAT = Path(
 
 @dataclass(frozen=True)
 class Runway:
-    """One row of runways.dat. Lengths in metres, angles in degrees."""
+    """One row of runways.dat. Lengths in meters, angles in degrees."""
 
     airport: str
     name: str
@@ -54,8 +54,7 @@ class Runway:
         """Threshold-to-threshold distance, equirectangular (good to <1 m here)."""
         mlat = 111132.0
         mlon = 111320.0 * math.cos(math.radians((self.r1_lat + self.r2_lat) / 2))
-        return math.hypot((self.r2_lat - self.r1_lat) * mlat,
-                          (self.r2_lon - self.r1_lon) * mlon)
+        return math.hypot((self.r2_lat - self.r1_lat) * mlat, (self.r2_lon - self.r1_lon) * mlon)
 
     def corners_runway_frame(self) -> np.ndarray:
         """The runway rectangle in runway coordinates (X down-runway, Y right).
@@ -70,8 +69,7 @@ class Runway:
 def load_runways(path=None) -> dict:
     """Parse runways.dat into {(airport, runway_name): Runway}.
 
-    Columns: airport name elev width r1_name r1_lat r1_lon r2_name r2_lat r2_lon
-    ils heading.
+    Columns: airport name elev width r1_name r1_lat r1_lon r2_name r2_lat r2_lon ils heading.
     """
     table = {}
     for line in Path(path or DEFAULT_RUNWAYS_DAT).read_text().splitlines():
@@ -79,9 +77,15 @@ def load_runways(path=None) -> dict:
         if len(f) < 12:
             continue
         table[(f[0], f[1])] = Runway(
-            airport=f[0], name=f[1], elev_m=float(f[2]), width_m=float(f[3]),
-            r1_lat=float(f[5]), r1_lon=float(f[6]),
-            r2_lat=float(f[8]), r2_lon=float(f[9]), heading_deg=float(f[11]),
+            airport=f[0],
+            name=f[1],
+            elev_m=float(f[2]),
+            width_m=float(f[3]),
+            r1_lat=float(f[5]),
+            r1_lon=float(f[6]),
+            r2_lat=float(f[8]),
+            r2_lon=float(f[9]),
+            heading_deg=float(f[11]),
         )
     return table
 
@@ -99,10 +103,10 @@ class Frame:
     along_m: float
     height_m: float
     right_m: float
-    polygon_norm: np.ndarray          # (n, 2) in [0, 1], empty if unlabelled
+    polygon_norm: np.ndarray  # (n, 2) in [0, 1], empty if unlabelled
 
     @property
-    def labelled(self) -> bool:
+    def labeled(self) -> bool:
         return len(self.polygon_norm) >= 3
 
     @property
@@ -130,8 +134,7 @@ class Episode:
     @property
     def stems(self):
         if self._stems is None:
-            imgs = [p for p in (self.path / "images").iterdir()
-                    if p.suffix.lower() in IMAGE_SUFFIXES]
+            imgs = [p for p in (self.path / "images").iterdir() if p.suffix.lower() in IMAGE_SUFFIXES]
             self._stems = sorted(p.stem for p in imgs)
         return self._stems
 
@@ -146,9 +149,15 @@ class Episode:
         yaw, pitch, roll = _read_floats(self.path / "pose" / f"{stem}.txt")
         along, height, right = _read_floats(self.path / "position" / f"{stem}.txt")
         return Frame(
-            episode=self, stem=stem, image_path=self.image_path(stem),
-            yaw_deg=yaw, pitch_deg=pitch, roll_deg=roll,
-            along_m=along, height_m=height, right_m=right,
+            episode=self,
+            stem=stem,
+            image_path=self.image_path(stem),
+            yaw_deg=yaw,
+            pitch_deg=pitch,
+            roll_deg=roll,
+            along_m=along,
+            height_m=height,
+            right_m=right,
             polygon_norm=_read_label(self.path / "labels" / f"{stem}.txt"),
         )
 
@@ -160,8 +169,7 @@ class Episode:
 def find_episodes(root):
     """Every directory under `root` that looks like a collector episode."""
     root = Path(root)
-    out = [p for p in sorted(root.iterdir())
-           if p.is_dir() and (p / "meta.txt").exists() and (p / "images").is_dir()]
+    out = [p for p in sorted(root.iterdir()) if p.is_dir() and (p / "meta.txt").exists() and (p / "images").is_dir()]
     return [Episode(p) for p in out]
 
 
@@ -174,31 +182,28 @@ def _read_label(path) -> np.ndarray:
     if not p.exists():
         return np.zeros((0, 2))
     vals = p.read_text().split()
-    if len(vals) < 7:                       # class id + at least 3 points
+    if len(vals) < 7:  # class id + at least 3 points
         return np.zeros((0, 2))
     return np.array([float(v) for v in vals[1:]], dtype=np.float64).reshape(-1, 2)
 
 
-def runway_to_ground(points_runway: np.ndarray, along_m: float, right_m: float,
-                     yaw_deg: float) -> np.ndarray:
-    """Runway-frame points -> ground frame centred on the aircraft.
+def runway_to_ground(points_runway: np.ndarray, along_m: float, right_m: float, yaw_deg: float) -> np.ndarray:
+    """Runway-frame points -> ground frame centered on the aircraft.
 
-    The ground frame is the one experiments.bev.transform warps into: X forward
-    along the aircraft's HEADING (not the runway), Y to its right. This is the
-    bridge between the position/pose logs and anything measured off a BEV image.
+    The ground frame is the one experiments.bev.transform warps into: X forward along the aircraft's HEADING (not the
+    runway), Y to its right. This is the bridge between the position/pose logs and anything measured off a BEV image.
 
-    A threshold 1 km ahead with the aircraft 10 m right of the centreline and no
-    yaw error gives (1000, -10): the runway sits 10 m to the LEFT in the image.
+    A threshold 1 km ahead with the aircraft 10 m right of the centreline and no yaw error gives (1000, -10): the runway
+    sits 10 m to the LEFT in the image.
     """
     psi = math.radians(yaw_deg)
     d = np.asarray(points_runway, dtype=np.float64).reshape(-1, 2) - np.array([along_m, right_m])
-    fwd = np.array([math.cos(psi), math.sin(psi)])      # ground +X in runway axes
-    rgt = np.array([-math.sin(psi), math.cos(psi)])     # ground +Y in runway axes
+    fwd = np.array([math.cos(psi), math.sin(psi)])  # ground +X in runway axes
+    rgt = np.array([-math.sin(psi), math.cos(psi)])  # ground +Y in runway axes
     return np.column_stack([d @ fwd, d @ rgt])
 
 
-def ground_to_runway(points_ground: np.ndarray, along_m: float, right_m: float,
-                     yaw_deg: float) -> np.ndarray:
+def ground_to_runway(points_ground: np.ndarray, along_m: float, right_m: float, yaw_deg: float) -> np.ndarray:
     """Inverse of runway_to_ground."""
     psi = math.radians(yaw_deg)
     g = np.asarray(points_ground, dtype=np.float64).reshape(-1, 2)

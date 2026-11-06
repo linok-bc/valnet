@@ -22,9 +22,9 @@ from torch.utils.data import DataLoader
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from deeplab.data import XP12Seg  # noqa: E402
-from deeplab.eval import evaluate  # noqa: E402
-from deeplab.model import DeepLabV3Plus  # noqa: E402
+from deeplab.data import XP12Seg
+from deeplab.eval import evaluate
+from deeplab.model import DeepLabV3Plus
 
 
 def loss_fn(logits, mask, dice_weight):
@@ -47,15 +47,20 @@ def main():
     root = REPO / cfg.data.root
     train_ds = XP12Seg(root / cfg.data.train, train=True, fliplr=cfg.data.fliplr, jitter=cfg.data.jitter)
     val_ds = XP12Seg(root / cfg.data.val)
-    train_dl = DataLoader(train_ds, t.batch, shuffle=True, num_workers=t.workers, pin_memory=True,
-                          drop_last=True, persistent_workers=True)
+    train_dl = DataLoader(
+        train_ds, t.batch, shuffle=True, num_workers=t.workers, pin_memory=True, drop_last=True, persistent_workers=True
+    )
     val_dl = DataLoader(val_ds, t.batch, num_workers=t.workers, pin_memory=True)
 
     model = DeepLabV3Plus().to(dev).to(memory_format=torch.channels_last)
     pre, new = model.param_groups()
-    opt = torch.optim.SGD([{"params": pre, "lr_mult": t.pretrained_lr_mult},
-                           {"params": new, "lr_mult": 1.0}],
-                          lr=t.lr, momentum=t.momentum, weight_decay=t.weight_decay, nesterov=True)
+    opt = torch.optim.SGD(
+        [{"params": pre, "lr_mult": t.pretrained_lr_mult}, {"params": new, "lr_mult": 1.0}],
+        lr=t.lr,
+        momentum=t.momentum,
+        weight_decay=t.weight_decay,
+        nesterov=True,
+    )
     scaler = torch.amp.GradScaler(enabled=t.amp)
     total = t.epochs * len(train_dl)
     start, best = 0, -1.0
@@ -89,28 +94,44 @@ def main():
             scaler.update()
             run_loss += loss.item()
             if k % 200 == 0:
-                print(f"epoch {epoch + 1}/{t.epochs} iter {k}/{len(train_dl)} loss {loss.item():.4f} "
-                      f"lr {lr:.5f} {(k + 1) * t.batch / (time.time() - t0):.1f} img/s", flush=True)
+                print(
+                    f"epoch {epoch + 1}/{t.epochs} iter {k}/{len(train_dl)} loss {loss.item():.4f} "
+                    f"lr {lr:.5f} {(k + 1) * t.batch / (time.time() - t0):.1f} img/s",
+                    flush=True,
+                )
             if max_iters and k + 1 >= max_iters:
                 break
         row = {"epoch": epoch + 1, "train_loss": run_loss / (k + 1), "time_s": round(time.time() - t0, 1)}
 
         if (epoch + 1) % t.val_freq == 0 or epoch + 1 == t.epochs:
             m = evaluate(model, val_dl, dev, amp=t.amp)
-            row.update({"val_mean_iou": m["mean_iou"], "val_dataset_iou": m["dataset_iou"],
-                        "val_empty_pred": m["empty_pred"]})
-            print(f"  val mean IoU {m['mean_iou']:.4f}  dataset IoU {m['dataset_iou']:.4f}  "
-                  f"empty predictions {m['empty_pred']}", flush=True)
+            row.update(
+                {"val_mean_iou": m["mean_iou"], "val_dataset_iou": m["dataset_iou"], "val_empty_pred": m["empty_pred"]}
+            )
+            print(
+                f"  val mean IoU {m['mean_iou']:.4f}  dataset IoU {m['dataset_iou']:.4f}  "
+                f"empty predictions {m['empty_pred']}",
+                flush=True,
+            )
             if m["mean_iou"] > best:
                 best = m["mean_iou"]
                 torch.save(model.state_dict(), run / "best.pt")
                 print(f"  new best -> {run / 'best.pt'}", flush=True)
-        torch.save({"model": model.state_dict(), "opt": opt.state_dict(), "scaler": scaler.state_dict(),
-                    "epoch": epoch, "best": best}, run / "last.pt")
+        torch.save(
+            {
+                "model": model.state_dict(),
+                "opt": opt.state_dict(),
+                "scaler": scaler.state_dict(),
+                "epoch": epoch,
+                "best": best,
+            },
+            run / "last.pt",
+        )
         new_file = not log.exists()
         with open(log, "a", newline="") as fh:
-            w = csv.DictWriter(fh, fieldnames=["epoch", "train_loss", "time_s", "val_mean_iou",
-                                               "val_dataset_iou", "val_empty_pred"])
+            w = csv.DictWriter(
+                fh, fieldnames=["epoch", "train_loss", "time_s", "val_mean_iou", "val_dataset_iou", "val_empty_pred"]
+            )
             if new_file:
                 w.writeheader()
             w.writerow(row)

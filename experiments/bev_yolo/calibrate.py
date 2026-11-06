@@ -26,7 +26,6 @@ the chain disagrees and no amount of training will fix it.
 """
 
 import argparse
-import itertools
 import json
 import math
 from pathlib import Path
@@ -50,12 +49,10 @@ SIGN_HYPOTHESES = {
 
 
 def label_corners(poly_norm: np.ndarray) -> np.ndarray:
-    """Reduce a label polygon to 4 corners in near-left, far-left, far-right,
-    near-right order.
+    """Reduce a label polygon to 4 corners in near-left, far-left, far-right, near-right order.
 
-    The current collector writes exactly those four. The older 42-point format
-    walked the right edge outward (0..20) and the left edge back (21..41), so
-    its corners live at known indices.
+    The current collector writes exactly those four. The older 42-point format walked the right edge outward (0..20) and
+    the left edge back (21..41), so its corners live at known indices.
     """
     n = len(poly_norm)
     if n == 4:
@@ -66,7 +63,7 @@ def label_corners(poly_norm: np.ndarray) -> np.ndarray:
 
 
 def collect_observations(root, runways, max_frames, stride, seed=0):
-    """(observed corners px, predicted-input tuple) for a sample of labelled frames."""
+    """(observed corners px, predicted-input tuple) for a sample of labeled frames."""
     rng = np.random.default_rng(seed)
     episodes = find_episodes(root)
     if not episodes:
@@ -78,7 +75,7 @@ def collect_observations(root, runways, max_frames, stride, seed=0):
             continue
         corners_rw = rw.corners_runway_frame()
         for fr in ep.frames(stride=stride):
-            if not fr.labelled or fr.height_m <= 1.0:
+            if not fr.labeled or fr.height_m <= 1.0:
                 continue
             try:
                 obs = label_corners(fr.polygon_norm)
@@ -86,7 +83,7 @@ def collect_observations(root, runways, max_frames, stride, seed=0):
                 continue
             rows.append((obs, corners_rw, fr))
     if not rows:
-        raise SystemExit("no usable labelled frames found")
+        raise SystemExit("no usable labeled frames found")
     if len(rows) > max_frames:
         rows = [rows[i] for i in rng.choice(len(rows), max_frames, replace=False)]
     return rows
@@ -109,7 +106,7 @@ def residuals(params, rows, size, signs, fit_principal):
         uv = np.where(behind[:, None], 0.0, p[:, :2] / np.where(behind, 1.0, p[:, 2])[:, None])
         obs = obs_norm * np.array(size, dtype=np.float64)
         r = uv - obs
-        r[behind] = 1e4                     # a corner behind the camera is a hard miss
+        r[behind] = 1e4  # a corner behind the camera is a hard miss
         out.append(r.reshape(-1))
     return np.concatenate(out)
 
@@ -120,8 +117,9 @@ def fit(rows, size, signs, fit_principal, x0=None):
     p0 = list(x0 or [fx0, fy0, 0.0])
     if fit_principal:
         p0 += [size[0] / 2, size[1] / 2]
-    sol = least_squares(residuals, p0, args=(rows, size, signs, fit_principal),
-                        loss="soft_l1", f_scale=5.0, max_nfev=200)
+    sol = least_squares(
+        residuals, p0, args=(rows, size, signs, fit_principal), loss="soft_l1", f_scale=5.0, max_nfev=200
+    )
     r = residuals(sol.x, rows, size, signs, fit_principal).reshape(-1, 2)
     err = np.linalg.norm(r, axis=1)
     return sol.x, {
@@ -133,28 +131,27 @@ def fit(rows, size, signs, fit_principal, x0=None):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", required=True, help="root of the xp12 dataset")
     ap.add_argument("--runways", default=None, help="path to runways.dat")
     ap.add_argument("--image-size", type=int, nargs=2, default=[1280, 720])
     ap.add_argument("--max-frames", type=int, default=400)
     ap.add_argument("--stride", type=int, default=25)
-    ap.add_argument("--fit-principal", action="store_true",
-                    help="also fit the principal point (leave off unless the "
-                         "residual stays high with it centred)")
+    ap.add_argument(
+        "--fit-principal",
+        action="store_true",
+        help="also fit the principal point (leave off unless the residual stays high with it centered)",
+    )
     ap.add_argument("--out", default="experiments/bev_yolo/camera.json")
-    ap.add_argument("--all-signs", action="store_true",
-                    help="fit every sign hypothesis, not just the documented one")
+    ap.add_argument("--all-signs", action="store_true", help="fit every sign hypothesis, not just the documented one")
     args = ap.parse_args()
 
     runways = load_runways(args.runways)
     rows = collect_observations(args.data, runways, args.max_frames, args.stride)
     size = tuple(args.image_size)
-    print(f"{len(rows)} labelled frames sampled from {args.data}\n")
+    print(f"{len(rows)} labeled frames sampled from {args.data}\n")
 
-    hypotheses = SIGN_HYPOTHESES if args.all_signs else {
-        "documented (+yaw +pitch +roll)": (1, 1, 1)}
+    hypotheses = SIGN_HYPOTHESES if args.all_signs else {"documented (+yaw +pitch +roll)": (1, 1, 1)}
 
     results = {}
     for name, signs in hypotheses.items():
@@ -162,25 +159,41 @@ def main():
         results[name] = (x, stats, signs)
         fovx = 2 * math.degrees(math.atan(size[0] / 2 / x[0]))
         fovy = 2 * math.degrees(math.atan(size[1] / 2 / x[1]))
-        print(f"{name:32s} median {stats['median_px']:8.2f} px   p90 {stats['p90_px']:8.2f} px"
-              f"   fx {x[0]:7.1f} fy {x[1]:7.1f} ({fovx:.2f}/{fovy:.2f} deg) tilt {x[2]:+.3f} deg")
+        print(
+            f"{name:32s} median {stats['median_px']:8.2f} px   p90 {stats['p90_px']:8.2f} px"
+            f"   fx {x[0]:7.1f} fy {x[1]:7.1f} ({fovx:.2f}/{fovy:.2f} deg) tilt {x[2]:+.3f} deg"
+        )
 
     best = min(results, key=lambda k: results[k][1]["median_px"])
     x, stats, signs = results[best]
     print(f"\nbest: {best}")
     if stats["median_px"] > 10.0:
-        print("  WARNING: median residual above 10 px. The labels, the logs and the\n"
-              "  camera model do not agree -- do not build a BEV dataset on this.")
+        print(
+            "  WARNING: median residual above 10 px. The labels, the logs and the\n"
+            "  camera model do not agree -- do not build a BEV dataset on this."
+        )
     elif args.all_signs and best != "documented (+yaw +pitch +roll)":
-        print("  WARNING: a flipped sign fits better than the documented convention.\n"
-              "  Check the collector before trusting anything downstream.")
+        print(
+            "  WARNING: a flipped sign fits better than the documented convention.\n"
+            "  Check the collector before trusting anything downstream."
+        )
 
-    cam = dict(width=size[0], height=size[1], fx=float(x[0]), fy=float(x[1]),
-               cx=float(x[3]) if args.fit_principal else size[0] / 2,
-               cy=float(x[4]) if args.fit_principal else size[1] / 2,
-               tilt_deg=float(x[2]))
-    payload = dict(camera=cam, signs=dict(zip(("yaw", "pitch", "roll"), map(int, signs))),
-                   residual_px=stats, n_frames=len(rows), data=str(args.data))
+    cam = {
+        "width": size[0],
+        "height": size[1],
+        "fx": float(x[0]),
+        "fy": float(x[1]),
+        "cx": float(x[3]) if args.fit_principal else size[0] / 2,
+        "cy": float(x[4]) if args.fit_principal else size[1] / 2,
+        "tilt_deg": float(x[2]),
+    }
+    payload = {
+        "camera": cam,
+        "signs": dict(zip(("yaw", "pitch", "roll"), map(int, signs))),
+        "residual_px": stats,
+        "n_frames": len(rows),
+        "data": str(args.data),
+    }
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(payload, indent=2) + "\n")
     print(f"\nwrote {args.out}")

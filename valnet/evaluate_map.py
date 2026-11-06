@@ -1,5 +1,5 @@
 """
-VALNet mAP Computation
+VALNet mAP Computation.
 ======================
 
 The Segment head returns DIFFERENT outputs depending on .training:
@@ -24,17 +24,17 @@ This module provides two approaches:
   2. compute_map_from_train()  — decodes training-mode output manually (for debugging)
 """
 
+import numpy as np
 import torch
 import torch.nn.functional as F
-import numpy as np
 from ultralytics.utils import ops
-from ultralytics.utils.nms import non_max_suppression
 from ultralytics.utils.metrics import mask_iou
-
+from ultralytics.utils.nms import non_max_suppression
 
 # ---------------------------------------------------------------------------
 #  Approach 1: Eval-mode mAP (recommended)
 # ---------------------------------------------------------------------------
+
 
 @torch.no_grad()
 def compute_map_from_eval(
@@ -48,8 +48,7 @@ def compute_map_from_eval(
     device: str = "cuda",
     overlap_mask: bool = True,
 ):
-    """
-    Compute segmentation mAP using eval-mode head output.
+    """Compute segmentation mAP using eval-mode head output.
 
     This follows the same pipeline as Ultralytics' SegmentationValidator:
         1. Head outputs decoded boxes + sigmoid scores + mask coefficients
@@ -59,27 +58,22 @@ def compute_map_from_eval(
         5. mAP is accumulated across all images
 
     Args:
-        model:      VALNetModel or patched YOLO model (will be set to eval mode)
-        dataloader: yields batches with keys:
-                        'img' [B,3,H,W] normalized
-                        'bboxes' [N_total, 4] in xywh normalized
-                        'cls' [N_total, 1]
-                        'batch_idx' [N_total]
-                        'masks' [B, H, W] or [N_total, H, W]
-        nc:         number of classes (1 for RLD runway)
+        model: VALNetModel or patched YOLO model (will be set to eval mode)
+        dataloader: yields batches with keys: 'img' [B,3,H,W] normalized 'bboxes' [N_total, 4] in xywh normalized 'cls'
+            [N_total, 1] 'batch_idx' [N_total] 'masks' [B, H, W] or [N_total, H, W]
+        nc: number of classes (1 for RLD runway)
         conf_thres: confidence threshold for NMS
-        iou_thres:  IoU threshold for NMS
-        max_det:    max detections per image
-        iou_range:  (start, stop, num_steps) for mAP IoU thresholds
-        device:     device string
+        iou_thres: IoU threshold for NMS
+        max_det: max detections per image
+        iou_range: (start, stop, num_steps) for mAP IoU thresholds
+        device: device string
         overlap_mask: GT mask layout, matching the dataloader's `overlap_mask`
-                    (Ultralytics' default, True): one [H, W] map per image
-                    whose value k marks the image's k-th instance. False means
-                    one binary [H, W] mask per instance.
+        (Ultralytics' default, True): one [H, W] map per image whose value k marks the image's k-th instance. False
+            means one binary [H, W] mask per instance.
 
     Returns:
-        dict with mAP, AP50, AP75 (full resolution), the same three suffixed
-        _proto (prototype resolution, Ultralytics-comparable), and per-class APs
+        dict with mAP, AP50, AP75 (full resolution), the same three suffixed: _proto (prototype resolution,
+            Ultralytics-comparable), and per-class APs
     """
     model.eval()
     model.to(device)
@@ -100,18 +94,18 @@ def compute_map_from_eval(
     # shifting the full-res masks by +/-1..3 px only lowers IoU, so the gap is
     # resolution, not misalignment.
     stats = {
-        "tp_m": [],        # mask true positives, full resolution
+        "tp_m": [],  # mask true positives, full resolution
         "tp_m_proto": [],  # mask true positives, prototype resolution
-        "conf": [],        # confidence scores
+        "conf": [],  # confidence scores
         "pred_cls": [],
         "gt_cls": [],
     }
 
     for batch in dataloader:
         imgs = batch["img"].to(device).float() / 255.0 if batch["img"].max() > 1 else batch["img"].to(device).float()
-        gt_bboxes = batch["bboxes"]      # [N_total, 4] xywh normalized
-        gt_cls = batch["cls"]            # [N_total, 1]
-        batch_idx = batch["batch_idx"]   # [N_total]
+        gt_bboxes = batch["bboxes"]  # [N_total, 4] xywh normalized
+        gt_cls = batch["cls"]  # [N_total, 1]
+        batch_idx = batch["batch_idx"]  # [N_total]
         gt_masks = batch["masks"].to(device).float()  # [B, H, W] or similar
 
         # --- Forward (eval mode) ---
@@ -122,7 +116,7 @@ def compute_map_from_eval(
 
         bs = imgs.shape[0]
         imgsz = imgs.shape[2:]  # (H, W)
-        proto_h, proto_w = proto.shape[2:]
+        _proto_h, _proto_w = proto.shape[2:]
 
         # --- NMS per image ---
         # Permute decoded to [B, N_anchors, 4+nc+nm] for NMS
@@ -151,13 +145,13 @@ def compute_map_from_eval(
         #          columns: x1, y1, x2, y2, conf, cls, mask_coeff_0..mask_coeff_31
 
         for si in range(bs):
-            det = nms_out[si]   # [n_det, 6+nm]
+            det = nms_out[si]  # [n_det, 6+nm]
             n_det = det.shape[0]
 
             # Ground truth for this image
             idx = batch_idx == si
-            gt_cls_i = gt_cls[idx].squeeze(-1).to(device)    # [n_gt]
-            gt_bbox_i = gt_bboxes[idx].to(device)             # [n_gt, 4] xywh normalized
+            gt_cls_i = gt_cls[idx].squeeze(-1).to(device)  # [n_gt]
+            gt_bboxes[idx].to(device)  # [n_gt, 4] xywh normalized
             n_gt = gt_cls_i.shape[0]
 
             stats["gt_cls"].append(gt_cls_i.cpu())
@@ -170,21 +164,25 @@ def compute_map_from_eval(
                     stats["pred_cls"].append(torch.empty(0))
                 continue
 
-            pred_boxes = det[:, :4]                         # [n_det, 4] x1y1x2y2 pixel
-            pred_conf = det[:, 4]                           # [n_det]
-            pred_cls = det[:, 5]                            # [n_det]
-            mask_coeffs = det[:, 6:]                        # [n_det, nm]
+            pred_boxes = det[:, :4]  # [n_det, 4] x1y1x2y2 pixel
+            pred_conf = det[:, 4]  # [n_det]
+            pred_cls = det[:, 5]  # [n_det]
+            mask_coeffs = det[:, 6:]  # [n_det, nm]
 
             # --- Assemble masks ---
             pred_masks = ops.process_mask(
-                proto[si],          # [32, Hp, Wp]
-                mask_coeffs,        # [n_det, 32]
-                pred_boxes,         # [n_det, 4]
+                proto[si],  # [32, Hp, Wp]
+                mask_coeffs,  # [n_det, 32]
+                pred_boxes,  # [n_det, 4]
                 shape=imgsz,
                 upsample=True,
             )  # [n_det, H, W] uint8
             pred_masks_proto = ops.process_mask(
-                proto[si], mask_coeffs, pred_boxes, shape=imgsz, upsample=False,
+                proto[si],
+                mask_coeffs,
+                pred_boxes,
+                shape=imgsz,
+                upsample=False,
             )  # [n_det, Hp, Wp] uint8
 
             stats["conf"].append(pred_conf.cpu())
@@ -208,12 +206,16 @@ def compute_map_from_eval(
                 # Resize GT masks to match prediction mask size if needed
                 gm = gt_masks_i
                 if gm.shape[1:] != pm.shape[1:]:
-                    gm = F.interpolate(
-                        gm.unsqueeze(0).float(),
-                        size=pm.shape[1:],
-                        mode="bilinear",
-                        align_corners=False,
-                    )[0].gt_(0.5).float()
+                    gm = (
+                        F.interpolate(
+                            gm.unsqueeze(0).float(),
+                            size=pm.shape[1:],
+                            mode="bilinear",
+                            align_corners=False,
+                        )[0]
+                        .gt_(0.5)
+                        .float()
+                    )
 
                 # --- Mask IoU, then match predictions to ground truth ---
                 iou = mask_iou(pm.flatten(1).float(), gm.flatten(1))
@@ -228,21 +230,18 @@ def compute_map_from_eval(
 
 
 def _match_predictions(pred_cls, gt_cls, iou, iou_thresholds):
-    """
-    Match predictions to ground truth at multiple IoU thresholds.
+    """Match predictions to ground truth at multiple IoU thresholds.
 
-    COCO-style greedy matching: detections are visited in descending confidence
-    (NMS already returns them in that order) and each takes the best-IoU ground
-    truth still unmatched. This is also what Ultralytics' match_predictions ends
-    up doing. Matching each GT to its highest-IoU detection instead marks the
-    confident-but-looser mask a false positive at the top of the ranking and
-    pushes the true positive down to a low confidence, which cost 0.08 mAP50-95
-    on a baseline checkpoint.
+    COCO-style greedy matching: detections are visited in descending confidence (NMS already returns them in that order)
+    and each takes the best-IoU ground truth still unmatched. This is also what Ultralytics' match_predictions ends up
+    doing. Matching each GT to its highest-IoU detection instead marks the confident-but-looser mask a false positive at
+    the top of the ranking and pushes the true positive down to a low confidence, which cost 0.08 mAP50-95 on a baseline
+    checkpoint.
 
     Args:
         pred_cls: [n_det], sorted by descending confidence
-        gt_cls:   [n_gt]
-        iou:      [n_det, n_gt]
+        gt_cls: [n_gt]
+        iou: [n_det, n_gt]
 
     Returns:
         np.ndarray of shape [n_det, n_iou_thresholds] (bool)
@@ -272,16 +271,15 @@ def _match_predictions(pred_cls, gt_cls, iou, iou_thresholds):
 
 
 def _compute_ap(stats, nc, niou, iou_thresholds):
-    """
-    Compute AP from accumulated statistics.
+    """Compute AP from accumulated statistics.
 
     Returns:
         dict with mAP, AP50, AP75, per_class_ap
     """
-    tp_m = np.concatenate(stats["tp_m"], axis=0)     # [total_dets, niou]
-    conf = torch.cat(stats["conf"]).numpy()           # [total_dets]
-    pred_cls = torch.cat(stats["pred_cls"]).numpy()   # [total_dets]
-    gt_cls = torch.cat(stats["gt_cls"]).numpy()       # [total_gt]
+    tp_m = np.concatenate(stats["tp_m"], axis=0)  # [total_dets, niou]
+    conf = torch.cat(stats["conf"]).numpy()  # [total_dets]
+    pred_cls = torch.cat(stats["pred_cls"]).numpy()  # [total_dets]
+    gt_cls = torch.cat(stats["gt_cls"]).numpy()  # [total_gt]
 
     # Sort by confidence descending
     sort_idx = np.argsort(-conf)
@@ -324,8 +322,8 @@ def _compute_ap(stats, nc, niou, iou_thresholds):
     mean_ap_per_iou = ap_per_class[valid].mean(axis=0)  # [niou]
 
     # Standard COCO metrics
-    idx_50 = 0                   # IoU=0.50
-    idx_75 = 5                   # IoU=0.75
+    idx_50 = 0  # IoU=0.50
+    idx_75 = 5  # IoU=0.75
     mAP = mean_ap_per_iou.mean()  # average over all IoU thresholds
     AP50 = mean_ap_per_iou[idx_50]
     AP75 = mean_ap_per_iou[idx_75] if niou > idx_75 else 0.0
@@ -340,9 +338,7 @@ def _compute_ap(stats, nc, niou, iou_thresholds):
 
 
 def _compute_ap_from_pr(recall, precision):
-    """
-    Compute AP using 101-point interpolation (COCO-style).
-    """
+    """Compute AP using 101-point interpolation (COCO-style)."""
     # Prepend sentinel values
     mrec = np.concatenate(([0.0], recall, [1.0]))
     mpre = np.concatenate(([1.0], precision, [0.0]))
@@ -356,24 +352,25 @@ def _compute_ap_from_pr(recall, precision):
     ap = np.mean(np.interp(recall_interp, mrec, mpre))
     return ap
 
+
 # ---------------------------------------------------------------------------
 #  Convenience wrapper
 # ---------------------------------------------------------------------------
 
+
 def evaluate_valnet(model, dataloader, nc=1, device="cuda"):
-    """
-    One-liner evaluation.
+    """One-liner evaluation.
 
     Args:
-        model:      VALNetModel or patched YOLO model
+        model: VALNetModel or patched YOLO model
         dataloader: validation dataloader
-        nc:         number of classes (1 for RLD)
-        device:     device
+        nc: number of classes (1 for RLD)
+        device: device
 
     Returns:
         dict with mAP, AP50, AP75
 
-    Example:
+    Examples:
         metrics = evaluate_valnet(model, val_loader, nc=1)
         print(f"mAP: {metrics['mAP']:.1%}, AP50: {metrics['AP50']:.1%}, AP75: {metrics['AP75']:.1%}")
     """

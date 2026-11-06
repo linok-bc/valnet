@@ -30,17 +30,17 @@ import numpy as np
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts"))
-from demo_video import iou, poly_px, text  # noqa: E402
+from demo_video import iou, poly_px, text
 
 SM = 1609.344
 W, H, PW, PH = 1920, 1080, 960, 540
 AQUA, AMBER, WHITE, GREY, BG = (230, 220, 60), (40, 180, 255), (240, 240, 240), (150, 150, 150), (24, 24, 24)
-MODELS = [  # (name, predictions dir, BGR colour)
-    ("YOLOv8s-seg", "predictions_yolo_widened", (214, 120, 42)),    # #2a78d6, the summary page's colours
-    ("VALNet", "predictions_valnet", (52, 104, 235)),               # #eb6834
-    ("DeepLabV3+", "predictions_deeplab", (122, 175, 27)),          # #1baf7a
+MODELS = [  # (name, predictions dir, BGR color)
+    ("YOLOv8s-seg", "predictions_yolo_widened", (214, 120, 42)),  # #2a78d6, the summary page's colors
+    ("VALNet", "predictions_valnet", (52, 104, 235)),  # #eb6834
+    ("DeepLabV3+", "predictions_deeplab", (122, 175, 27)),  # #1baf7a
 ]
-LABEL = (245, 245, 245)   # label outline: white, distinct from every model colour
+LABEL = (245, 245, 245)  # label outline: white, distinct from every model color
 
 
 def camera_panel(img, label, det, color, name, v, scored):
@@ -55,8 +55,7 @@ def camera_panel(img, label, det, color, name, v, scored):
     cv2.rectangle(out, (0, 0), (PW, 46), (20, 20, 20), -1)
     cv2.line(out, (16, 23), (52, 23), color, 4)
     text(out, name, (64, 31), 0.8, WHITE, 2)
-    text(out, f"IoU {v:.3f}" if det is not None else "no detection", (PW - 190, 31), 0.75,
-         WHITE if scored else GREY, 2)
+    text(out, f"IoU {v:.3f}" if det is not None else "no detection", (PW - 190, 31), 0.75, WHITE if scored else GREY, 2)
     if not scored:
         cv2.rectangle(out, (0, PH - 36), (PW, PH), (30, 30, 30), -1)
         text(out, "beyond half the visibility: not scored", (14, PH - 11), 0.6, AMBER, 2)
@@ -67,11 +66,16 @@ def info_panel(flight, airport, regime, vis, rng, height, past, curves):
     p = np.full((PH, PW, 3), BG, np.uint8)
     text(p, f"{flight}   {airport}", (30, 46), 0.8, WHITE, 2)
     text(p, f"weather: {regime}   visibility {vis / 1000:.2f} km", (30, 84), 0.65, GREY)
-    text(p, ("past threshold" if past else f"range to threshold {rng:,.0f} m") + f"   height {height:,.0f} m",
-         (30, 116), 0.65, WHITE)
+    text(
+        p,
+        ("past threshold" if past else f"range to threshold {rng:,.0f} m") + f"   height {height:,.0f} m",
+        (30, 116),
+        0.65,
+        WHITE,
+    )
     # IoU vs range, range decreasing to the right
     x0, x1, y0, y1, rmax = 70, PW - 30, PH - 60, 200, 3.2
-    X = lambda m: int(x0 + (rmax - min(m / 1000, rmax)) / rmax * (x1 - x0))   # m -> px
+    X = lambda m: int(x0 + (rmax - min(m / 1000, rmax)) / rmax * (x1 - x0))  # m -> px
     Y = lambda v: int(y0 - (v - 0.5) / 0.5 * (y0 - y1))
     cv2.rectangle(p, (x0, y1), (x1, y0), (70, 70, 70), 1)
     if vis / 2 / 1000 < rmax:
@@ -94,8 +98,7 @@ def info_panel(flight, airport, regime, vis, rng, height, past, curves):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--flight", required=True, help="<dataset>/<episode>")
     ap.add_argument("--results", default=str(REPO / "results/xp12_combined"))
     ap.add_argument("--out", default=str(REPO / "results/xp12_combined/demos"))
@@ -117,13 +120,38 @@ def main():
 
     dst = Path(args.out) / f"compare_{ds.replace('xp12_dataset_', '')}_{ep}.mp4"
     dst.parent.mkdir(parents=True, exist_ok=True)
-    ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-                           "-s", f"{W}x{H}", "-r", str(args.fps), "-i", "-", "-c:v", "libx264",
-                           "-pix_fmt", "yuv420p", "-crf", "23", str(dst)], stdin=subprocess.PIPE)
+    ff = subprocess.Popen(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "bgr24",
+            "-s",
+            f"{W}x{H}",
+            "-r",
+            str(args.fps),
+            "-i",
+            "-",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-crf",
+            "23",
+            str(dst),
+        ],
+        stdin=subprocess.PIPE,
+    )
     curves = [[] for _ in MODELS]
     for s in stems:
         img = cv2.imread(str(root / "images" / f"{s}.jpg"))
-        lab = poly_px(np.array((root / "labels" / f"{s}.txt").read_text().split()[1:], float).reshape(-1, 2) * [1280, 720])
+        lab = poly_px(
+            np.array((root / "labels" / f"{s}.txt").read_text().split()[1:], float).reshape(-1, 2) * [1280, 720]
+        )
         along, height, _ = map(float, (root / "position" / f"{s}.txt").read_text().split())
         rng = math.hypot(along, height) if along < 0 else 0.0
         scored = preds[0][s]["scored"]

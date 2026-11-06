@@ -20,6 +20,7 @@ Usage:
 """
 
 import argparse
+import sys
 from pathlib import Path
 
 import torch
@@ -29,15 +30,15 @@ from ultralytics.cfg import get_cfg
 from ultralytics.data import build_dataloader, build_yolo_dataset
 from ultralytics.data.utils import check_det_dataset
 
-import sys
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
-from valnet.evaluate_map import evaluate_valnet  # noqa: E402
+from valnet.evaluate_map import evaluate_valnet
 
 
 def build_loader(data_yaml, split, imgsz, batch, workers):
-    """Same dataloader construction as scripts/train.py, so the harness sees
-    identical images, letterboxing and mask rasterization."""
+    """Same dataloader construction as scripts/train.py, so the harness sees identical images, letterboxing and mask
+    rasterization.
+    """
     cfg = get_cfg()
     cfg.data = str(data_yaml)
     cfg.imgsz = imgsz
@@ -49,8 +50,12 @@ def build_loader(data_yaml, split, imgsz, batch, workers):
         raise SystemExit(f"split {split!r} not defined in {data_yaml}")
 
     dataset = build_yolo_dataset(
-        cfg=cfg, img_path=data_dict[split], batch=batch,
-        data=data_dict, mode="val", rect=False,
+        cfg=cfg,
+        img_path=data_dict[split],
+        batch=batch,
+        data=data_dict,
+        mode="val",
+        rect=False,
     )
     return build_dataloader(dataset=dataset, batch=batch, workers=workers, shuffle=False)
 
@@ -78,8 +83,9 @@ def main():
 
     if not cli.skip_native:
         print("=== Ultralytics SegmentationValidator ===")
-        r = model.val(data=str(data_yaml), split=cli.split, imgsz=cfg.imgsz,
-                      batch=cli.batch, device=device, verbose=False)
+        r = model.val(
+            data=str(data_yaml), split=cli.split, imgsz=cfg.imgsz, batch=cli.batch, device=device, verbose=False
+        )
         print(f"  mask mAP50-95 : {r.seg.map:.4f}")
         print(f"  mask mAP50    : {r.seg.map50:.4f}")
         print(f"  mask mAP75    : {r.seg.map75:.4f}")

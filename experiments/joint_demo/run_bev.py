@@ -54,8 +54,7 @@ def main():
         cache.mkdir(parents=True, exist_ok=True)
         cam, frames = collect(arm, cfg, weights, ep, 1, None, args.dp_frac, cache)
         frames = [f for f in frames if f["range_m"] <= data.HEADING_FROM_M]
-        raw, kf, marks = estimate_track(frames, cam, VARIANTS[args.variant], args.pivot,
-                                        args.kf_q, args.kf_r)
+        raw, kf, marks = estimate_track(frames, cam, VARIANTS[args.variant], args.pivot, args.kf_q, args.kf_r)
         rows = []
         for f, r, k, m in zip(frames, raw, kf, marks):
             bev = cv2.imread(str(f["bev_path"]))
@@ -66,15 +65,22 @@ def main():
                 if m["edge"] is not None:
                     edge = to_bev_px(np.array(m["edge"]), f["grid"])
                 pt = to_bev_px(np.asarray(m["point"]).reshape(1, 2), f["grid"])[0]
-            rows.append({"frame": int(f["stem"]), "range_m": f["range_m"],
-                         "bev_raw": float(r), "bev_kf": float(k),
-                         "poly_src": _lst(f["poly_src"]), "poly_bev": _lst(f["poly_px"]),
-                         "edge_bev": _lst(edge), "point_bev": _lst(pt)})
+            rows.append(
+                {
+                    "frame": int(f["stem"]),
+                    "range_m": f["range_m"],
+                    "bev_raw": float(r),
+                    "bev_kf": float(k),
+                    "poly_src": _lst(f["poly_src"]),
+                    "poly_bev": _lst(f["poly_px"]),
+                    "edge_bev": _lst(edge),
+                    "point_bev": _lst(pt),
+                }
+            )
         for p in cache.glob("bev_*.png"):
             p.unlink()
         (data.HERE / "cache/bev" / f"{ep}.json").write_text(json.dumps(rows))
-        print(f"{ep}: {len(rows)} frames, {np.isfinite(raw).mean():.0%} with a measurement",
-              flush=True)
+        print(f"{ep}: {len(rows)} frames, {np.isfinite(raw).mean():.0%} with a measurement", flush=True)
 
 
 if __name__ == "__main__":

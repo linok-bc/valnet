@@ -16,15 +16,14 @@ from pathlib import Path
 RESTART = Path(__file__).resolve().parents[2] / "capstone-dof-estimation"
 sys.path.insert(0, str(RESTART))
 
-import pandas as pd  # noqa: E402
+import pandas as pd
+from evaluation.configs import make_method
+from evaluation.observations import YoloMaskCache
+from evaluation.runner import RunConfig, run_sequence
+from runway_detection.xp12.calibration import load_calibrations
+from runway_detection.xp12.loader import load_sequence
 
-from experiments.joint_demo import data  # noqa: E402
-
-from evaluation.configs import make_method  # noqa: E402
-from evaluation.observations import YoloMaskCache  # noqa: E402
-from evaluation.runner import RunConfig, run_sequence  # noqa: E402
-from runway_detection.xp12.calibration import load_calibrations  # noqa: E402
-from runway_detection.xp12.loader import load_sequence  # noqa: E402
+from experiments.joint_demo import data
 
 
 def one(job):
@@ -34,8 +33,9 @@ def one(job):
     cache = YoloMaskCache(args.masks)
     # kf_crab=False: the original 3-state EKF, which cache/heading was produced with.
     cfg = RunConfig(source="yolo", mode="track", kf=not args.no_kf, kf_crab=False)
-    rows = run_sequence(seq, calib, make_method(args.method), cfg, yolo=cache,
-                        frame_indices=cache.available_indices(ep))
+    rows = run_sequence(
+        seq, calib, make_method(args.method), cfg, yolo=cache, frame_indices=cache.available_indices(ep)
+    )
     out = Path(args.out) / f"{ep}.csv"
     pd.DataFrame(rows).to_csv(out, index=False)
     return ep, len(rows)
