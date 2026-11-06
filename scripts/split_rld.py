@@ -1,6 +1,6 @@
 import os
-import shutil
 import random
+import shutil
 
 src_images = "images"
 src_labels = "labels"
@@ -31,4 +31,6 @@ for split, files in split_files.items():
         if os.path.exists(label_src):
             shutil.copy(label_src, os.path.join(split, "labels", label_f))
 
-print(f"Split complete: train={len(split_files['train'])}, val={len(split_files['val'])}, test={len(split_files['test'])}")
+print(
+    f"Split complete: train={len(split_files['train'])}, val={len(split_files['val'])}, test={len(split_files['test'])}"
+)

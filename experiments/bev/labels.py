@@ -8,7 +8,7 @@ Ultralytics label formats used here, all normalized to [0, 1]:
 
 In BEV the runway is a rectangle rotated by the heading error, so `obb` fits it
 exactly while `detect` cannot: an axis-aligned box around a rotated rectangle
-is larger than the runway and its centre is only unbiased when the heading
+is larger than the runway and its center is only unbiased when the heading
 error is zero. That difference is the experiment.
 """
 
@@ -19,10 +19,9 @@ import numpy as np
 def warp_points(pts_px: np.ndarray, m_bev: np.ndarray):
     """Map image pixels -> BEV pixels.
 
-    Returns (points, valid). A point is invalid when it lies on or beyond the
-    horizon, where the homography sends it to infinity or behind the camera --
-    which is exactly what happens to runway corners in frames where the near
-    plane clipping has already corrupted the label.
+    Returns (points, valid). A point is invalid when it lies on or beyond the horizon, where the homography sends it to
+    infinity or behind the camera -- which is exactly what happens to runway corners in frames where the near plane
+    clipping has already corrupted the label.
     """
     pts = np.asarray(pts_px, dtype=np.float64).reshape(-1, 2)
     h = np.column_stack([pts, np.ones(len(pts))]) @ m_bev.T
@@ -34,10 +33,14 @@ def warp_points(pts_px: np.ndarray, m_bev: np.ndarray):
 
 def clip_to_canvas(poly: np.ndarray, width: int, height: int) -> np.ndarray:
     """Sutherland-Hodgman clip against the BEV canvas rectangle."""
+
     def inside(p, edge):
-        if edge == 0: return p[0] >= 0
-        if edge == 1: return p[0] <= width - 1
-        if edge == 2: return p[1] >= 0
+        if edge == 0:
+            return p[0] >= 0
+        if edge == 1:
+            return p[0] <= width - 1
+        if edge == 2:
+            return p[1] >= 0
         return p[1] <= height - 1
 
     def intersect(a, b, edge):
@@ -101,15 +104,12 @@ FORMATTERS = {
 }
 
 
-def obb_geometry(poly: np.ndarray, mpp: float, grid_width: int, grid_height: int,
-                 x_near: float):
+def obb_geometry(poly: np.ndarray, mpp: float, grid_width: int, grid_height: int, x_near: float):
     """Metric description of the fitted rotated box, for diagnostics.
 
-    Returns dict with the runway's width and length in metres, its centre in
-    ground coordinates (forward X, lateral Y), and the heading error in degrees
-    measured from BEV "up". These are the quantities a downstream estimator
-    wants, so having them here makes it cheap to build an oracle and check what
-    a perfect detector would give you.
+    Returns dict with the runway's width and length in meters, its center in ground coordinates (forward X, lateral Y),
+    and the heading error in degrees measured from BEV "up". These are the quantities a downstream estimator wants, so
+    having them here makes it cheap to build an oracle and check what a perfect detector would give you.
     """
     (cx, cy), (w, h), ang = cv2.minAreaRect(poly.astype(np.float32))
     short, long = (w, h) if w <= h else (h, w)

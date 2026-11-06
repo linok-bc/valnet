@@ -7,16 +7,16 @@ if this underperforms, it is the data or the task, not our plumbing.
 
 In the VALNet paper's own ablation (Table 9) the YOLOv8-seg baseline scores
 65.9 mAP and full VALNet scores 69.4 — a **+3.5 point** gain. Without that
-reference number measured on *our* data, a VALNet result is uninterpretable.
+reference number measured on _our_ data, a VALNet result is uninterpretable.
 
 It matters more here than it did for the authors. Of VALNet's 12.80M
 parameters (paper-size config; the full-width variant is 19.32M), 4.95M
 (**39%**) are randomly initialized (CEM + AFPN + OAM); only the backbone and
 head carry COCO weights. The paper pretrained the whole
 network on COCO first (§5.1.3, and Table 8 reports VALNet's COCO2017 results)
-and Table 5's 50-epoch recipe describes only the *fine-tuning* stage. We are
+and Table 5's 50-epoch recipe describes only the _fine-tuning_ stage. We are
 skipping that pretraining, so undertrained modules could easily land VALNet
-*below* this baseline.
+_below_ this baseline.
 
 A run here is cheap — roughly 40 minutes for 50 epochs at the measured
 110 img/s on a 3090 Ti — so measuring beats guessing.
@@ -32,10 +32,10 @@ A run here is cheap — roughly 40 minutes for 50 epochs at the measured
 
 Two different questions, so two presets. **Run both.**
 
-| preset | what it answers |
-|---|---|
-| `controlled` | Do CEM/AFPN/OAM earn their keep? Every shared hyperparameter matched to the VALNet run, so a difference is attributable to architecture. |
-| `stock` | Is VALNet better than YOLOv8 out of the box? Ultralytics defaults, including the mosaic and flip augmentation that is a real part of why YOLOv8 scores what it scores. |
+| preset       | what it answers                                                                                                                                                        |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `controlled` | Do CEM/AFPN/OAM earn their keep? Every shared hyperparameter matched to the VALNet run, so a difference is attributable to architecture.                               |
+| `stock`      | Is VALNet better than YOLOv8 out of the box? Ultralytics defaults, including the mosaic and flip augmentation that is a real part of why YOLOv8 scores what it scores. |
 
 If VALNet only wins under `controlled`, the win came from hobbling the baseline.
 

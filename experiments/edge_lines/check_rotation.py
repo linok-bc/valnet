@@ -29,6 +29,7 @@ from pathlib import Path
 
 import cv2
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -61,9 +62,8 @@ def u_on(p, q, v):
 def measure_edges(gray, quad_a, quad_b, pad=5, min_width_px=6):
     """Painted-edge columns along the WHOLE visible runway, from the gradient alone.
 
-    The two outlines only say where to look: in each row the search window spans
-    both of their edge positions plus `pad` px, so it favours neither. Inside it
-    the strongest horizontal intensity step wins, with a parabolic sub-pixel
+    The two outlines only say where to look: in each row the search window spans both of their edge positions plus `pad`
+    px, so it favors neither. Inside it the strongest horizontal intensity step wins, with a parabolic sub-pixel
     peak. Rows where the runway is narrower than `min_width_px` are skipped --
     near the horizon the two edges blur into one. Returns [(v, u_left, u_right)].
     """
@@ -73,12 +73,12 @@ def measure_edges(gray, quad_a, quad_b, pad=5, min_width_px=6):
     out = []
     for v in range(v_near, 0, -1):
         row = []
-        for a_idx, b_idx in ((0, 1), (3, 2)):          # left edge NL-FL, right NR-FR
+        for a_idx, b_idx in ((0, 1), (3, 2)):  # left edge NL-FL, right NR-FR
             us = [u_on(q[a_idx], q[b_idx], v) for q in (quad_a, quad_b)]
             a, b = int(np.floor(min(us) - pad)), int(np.ceil(max(us) + pad))
             if a < 1 or b >= gray.shape[1] - 1:
                 break
-            seg = np.abs(gx[v, a:b + 1])
+            seg = np.abs(gx[v, a : b + 1])
             k = int(seg.argmax())
             if 0 < k < len(seg) - 1:
                 y0, y1, y2 = seg[k - 1], seg[k], seg[k + 1]
@@ -102,21 +102,20 @@ def image_crosstrack(edges, f, cam, width_m):
         if fit is None:
             return None
         a, b = fit[0], fit[1]
-        lines.append(np.array([1.0, -b, -a]))          # u = a + b v, original pixels
-    out = crosstrack(lines[0], lines[1], cam, f.roll_deg, f.pitch_deg, f.height_m,
-                     width_m, f.yaw_deg)
+        lines.append(np.array([1.0, -b, -a]))  # u = a + b v, original pixels
+    out = crosstrack(lines[0], lines[1], cam, f.roll_deg, f.pitch_deg, f.height_m, width_m, f.yaw_deg)
     return out["free_width"]
 
 
 def label_crosstrack(f, cam, width_m):
     q = f.polygon_px(cam.width, cam.height)
-    return crosstrack(line_through(q[0], q[1]), line_through(q[3], q[2]), cam,
-                      f.roll_deg, f.pitch_deg, f.height_m, width_m, f.yaw_deg)["free_width"]
+    return crosstrack(
+        line_through(q[0], q[1]), line_through(q[3], q[2]), cam, f.roll_deg, f.pitch_deg, f.height_m, width_m, f.yaw_deg
+    )["free_width"]
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", default="datasets/xp12_dataset")
     ap.add_argument("--camera", default="experiments/bev_yolo/camera.json")
     ap.add_argument("--out", default="experiments/edge_lines/media/rotation_check.png")
@@ -127,10 +126,12 @@ def main():
     cam = CameraModel(**json.loads(Path(args.camera).read_text())["camera"])
     runways = load_runways()
 
-    fig, axes = plt.subplots(2, len(EPISODES), figsize=(5.6 * len(EPISODES), 8.4),
-                             gridspec_kw={"height_ratios": [1.0, 1.0]})
-    print(f"{'episode':>8} {'airport':>9}  n    image-vs-label   image-vs-logs"
-          f"   (m, cross-track, 150-1500 m, MAE / mean)")
+    fig, axes = plt.subplots(
+        2, len(EPISODES), figsize=(5.6 * len(EPISODES), 8.4), gridspec_kw={"height_ratios": [1.0, 1.0]}
+    )
+    print(
+        f"{'episode':>8} {'airport':>9}  n    image-vs-label   image-vs-logs   (m, cross-track, 150-1500 m, MAE / mean)"
+    )
     for i, (e, ang) in enumerate(EPISODES):
         ep = Episode(Path(args.root) / e)
         rw = runways[(ep.airport, ep.runway_name)]
@@ -147,8 +148,7 @@ def main():
         y0, y1 = int(v_top - 6), int(max(lab[0][1], lab[3][1]) + 12)
         ax = axes[0, i]
         crop = cv2.cvtColor(img[y0:y1, x0:x1], cv2.COLOR_BGR2RGB)
-        ax.imshow(crop, extent=(x0 - 0.5, x1 - 0.5, y1 - 0.5, y0 - 0.5),
-                  interpolation="nearest")
+        ax.imshow(crop, extent=(x0 - 0.5, x1 - 0.5, y1 - 0.5, y0 - 0.5), interpolation="nearest")
         for q, col, name in ((lab, "#22dd44", "label"), (log, "#ff3030", "logs")):
             ax.plot([q[0][0], q[1][0]], [q[0][1], q[1][1]], color=col, lw=1.3, label=name)
             ax.plot([q[3][0], q[2][0]], [q[3][1], q[2][1]], color=col, lw=1.3)
@@ -159,38 +159,43 @@ def main():
             ax.plot(ev[:, 2], ev[:, 0], "o", ms=2.4, color="#ffd400")
         ax.set_xlim(x0 - 0.5, x1 - 0.5), ax.set_ylim(y1 - 0.5, y0 - 0.5)
         ax.set_xticks([]), ax.set_yticks([])
-        ax.set_title(f"{e}  {ep.airport} {ep.runway_name}  (eval fit {ang} deg)\n"
-                     f"frame {f.stem}, {f.range_m:.0f} m out, zoomed", fontsize=9)
+        ax.set_title(
+            f"{e}  {ep.airport} {ep.runway_name}  (eval fit {ang} deg)\nframe {f.stem}, {f.range_m:.0f} m out, zoomed",
+            fontsize=9,
+        )
         if i == 0:
             ax.legend(loc="upper left", fontsize=7.5, framealpha=0.85)
 
         # --- bottom: the whole approach, three cross-track sources
-        r, logged, labelled, imaged = [], [], [], []
-        for f in frames[::args.stride]:
-            if not f.labelled or not 150 <= f.range_m <= 1500:
+        r, logged, labeled, imaged = [], [], [], []
+        for f in frames[:: args.stride]:
+            if not f.labeled or not 150 <= f.range_m <= 1500:
                 continue
             img = cv2.imread(str(f.image_path), cv2.IMREAD_GRAYSCALE)
             lab, log = f.polygon_px(cam.width, cam.height), log_quad(f, rw, cam)
             est = image_crosstrack(measure_edges(img, lab, log), f, cam, rw.width_m)
             r.append(f.range_m), logged.append(f.right_m)
-            labelled.append(label_crosstrack(f, cam, rw.width_m))
+            labeled.append(label_crosstrack(f, cam, rw.width_m))
             imaged.append(np.nan if est is None else est)
-        r, logged, labelled, imaged = map(np.array, (r, logged, labelled, imaged))
+        r, logged, labeled, imaged = map(np.array, (r, logged, labeled, imaged))
         ok = np.isfinite(imaged)
-        d_lab, d_log = imaged[ok] - labelled[ok], imaged[ok] - logged[ok]
-        print(f"{e:>8} {ep.airport + ' ' + ep.runway_name:>9} {ok.sum():4d}"
-              f"   {np.abs(d_lab).mean():5.2f} / {d_lab.mean():+5.2f}"
-              f"    {np.abs(d_log).mean():5.2f} / {d_log.mean():+5.2f}")
+        d_lab, d_log = imaged[ok] - labeled[ok], imaged[ok] - logged[ok]
+        print(
+            f"{e:>8} {ep.airport + ' ' + ep.runway_name:>9} {ok.sum():4d}"
+            f"   {np.abs(d_lab).mean():5.2f} / {d_lab.mean():+5.2f}"
+            f"    {np.abs(d_log).mean():5.2f} / {d_log.mean():+5.2f}"
+        )
         ax = axes[1, i]
         ax.plot(r, logged, color="#ff3030", lw=1.8, label="logged `right`")
-        ax.plot(r, labelled, color="#22aa44", lw=1.8, label="from label corners")
-        ax.plot(r[ok], imaged[ok], ".", ms=3.5, color="#333333",
-                label="from edges found in image")
+        ax.plot(r, labeled, color="#22aa44", lw=1.8, label="from label corners")
+        ax.plot(r[ok], imaged[ok], ".", ms=3.5, color="#333333", label="from edges found in image")
         ax.invert_xaxis()
         ax.set_xlabel("range to threshold (m)")
         ax.set_ylabel("cross-track, m right of centreline")
-        ax.set_title(f"image vs label: {np.abs(d_lab).mean():.2f} m MAE   "
-                     f"image vs logs: {np.abs(d_log).mean():.2f} m MAE", fontsize=9)
+        ax.set_title(
+            f"image vs label: {np.abs(d_lab).mean():.2f} m MAE   image vs logs: {np.abs(d_log).mean():.2f} m MAE",
+            fontsize=9,
+        )
         ax.grid(alpha=0.3)
         if i == 0:
             ax.legend(fontsize=7.5)
