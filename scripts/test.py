@@ -74,9 +74,10 @@ if __name__ == '__main__':
     for k in ("mAP", "AP50", "AP75"):
         print(f"  {k:<6s} {seg_metrics[k]:>9.4f} {seg_metrics[k + '_proto']:>10.4f}")
     
-    generate_test_masks(
-        valnet,
-        test_loader,
-        output_dir=Path(main_dir, omegaCfg.test.output_dir),
-        device=device,
-    )
+    if omegaCfg.test.visuals:
+        generate_test_masks(
+            valnet,
+            test_loader,
+            output_dir=Path(main_dir, omegaCfg.test.output_dir),
+            device=device,
+        )

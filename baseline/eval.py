@@ -62,9 +62,15 @@ def main():
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--skip-native", action="store_true", help="skip the Ultralytics validator")
+    ap.add_argument("--data", default=None, help="data yaml relative to the repo (default: config.yaml)")
+    ap.add_argument("--imgsz", type=int, default=None)
     cli = ap.parse_args()
 
     cfg = OmegaConf.load(Path(__file__).parent / "config.yaml")
+    if cli.data is not None:
+        cfg.data = cli.data
+    if cli.imgsz is not None:
+        cfg.imgsz = cli.imgsz
     data_yaml = REPO / cfg.data
     device = "cuda" if torch.cuda.is_available() else "cpu"
 

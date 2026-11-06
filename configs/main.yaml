@@ -51,3 +51,4 @@ test:
   output_dir: results/youtube_video/test_visuals
   save_binary: False
   save_instance: True
+  visuals: True           # one mask overlay per test image; turn off for large test sets

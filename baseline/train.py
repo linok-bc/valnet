@@ -46,9 +46,15 @@ def main():
     ap.add_argument("--device", default=None)
     ap.add_argument("--weights", default=None, help="starting checkpoint (default: config.yaml), e.g. yolo26s-seg.pt")
     ap.add_argument("--fraction", type=float, default=None, help="of the train split; smoke tests only")
+    ap.add_argument("--data", default=None, help="data yaml relative to the repo (default: config.yaml)")
+    ap.add_argument("--imgsz", type=int, default=None)
     cli = ap.parse_args()
 
     cfg = OmegaConf.load(Path(__file__).parent / "config.yaml")
+    if cli.data is not None:
+        cfg.data = cli.data
+    if cli.imgsz is not None:
+        cfg.imgsz = cli.imgsz
     preset = cli.preset or cfg.preset
     args = build_args(cfg, preset)
 
