@@ -48,11 +48,28 @@ Run one flight from the command line; this writes `replay.mp4`, `frames.csv` and
 python -m e2e_runway_dof_estimation.demo --flight weather_000613
 ```
 
-Or open the web app (http://127.0.0.1:7860), pick a flight, press Run, and scrub through the frames:
+Or open the web app at http://127.0.0.1:7860:
 
 ```bash
 python -m e2e_runway_dof_estimation.app
 ```
+
+The app opens on a **preloaded run**: a saved result with its replay video. Switching between
+the five preloaded runs computes nothing, so it works without a GPU; the first view of each
+downloads its frames (50–150 MB). Scrub through the frames with the slider. To process a new
+flight folder, enter its path and press Run (needs a GPU).
+
+| Preloaded run | Flight | Yaw MAE | Cross-track MAE |
+|---|---|---|---|
+| `weather_000613` | EDDG 25, light rain, 7.9 m/s crosswind | 0.033° | 0.29 m |
+| `weather_000197` | EGNH 28, fog, 1.2 km visibility | 0.018° | 0.24 m |
+| `weather_000414` | ESOK 21, heavy rain | 0.014° | 0.19 m |
+| `weather_000021` | EFKS 12, mist | 0.044° | 0.92 m |
+| `easy_000116` | EFIV 22, clear | 0.032° | 0.91 m |
+
+Each is the test flight with the median mask IoU for its condition. The mist and clear flights
+show the estimator's weak spot: cross-track is off by 1–2 m from 1 km out and converges as the
+runway nears.
 
 From Python:
 
@@ -60,21 +77,23 @@ From Python:
 from e2e_runway_dof_estimation import pipeline
 result = pipeline.run("weather_000197")    # a sample name, or a flight folder
 print(result.summary())
+saved = pipeline.load_preloaded("weather_000021")   # a preloaded run, no computation
 ```
 
-`--flight` takes a sample name, downloaded on first use, or any flight folder from the
-dataset. The samples are `weather_000197` (EGNH 28 in fog) and `weather_000613` (EDDG 25 with
-a 7.9 m/s crosswind).
+`--flight` takes one of the five sample names above, downloaded on first use, or any flight
+folder from the dataset.
 
-Check an install with `python tests/test_smoke.py`, which runs both samples against reference
-numbers in about 20 s.
+Check an install with `python tests/test_smoke.py`. It loads every preloaded run and checks
+its saved summary, then runs two samples through the full pipeline against reference numbers
+(about 30 s on a GPU).
 
 ## Data and assets
 
 - **Dataset:** [`linok-bc/xp12_flights`](https://huggingface.co/datasets/linok-bc/xp12_flights),
   145 easy and 468 weather approaches in seven conditions (68 GB), with airport-grouped splits.
 - **Assets:** the private model repo `linok-bc/e2e-runway-dof-estimation` holds the DeepLabV3+
-  weights, the runway database (`runways.dat`) and the two sample flights. They are cached
+  weights, the runway database (`runways.dat`), five sample flights and their preloaded runs
+  (rebuild with `python -m tools.precompute_runs`). They are cached
   under `~/.cache/huggingface` and `~/.cache/e2e_runway_dof_estimation`.
 
 A flight folder holds `images/`, `pose/` (yaw pitch roll), `position/` (along height right,
@@ -89,7 +108,7 @@ runway.
 |---|---|
 | `e2e_runway_dof_estimation/` | The package: `data` (flights, runway database), `segment` (DeepLabV3+), `estimate` (wrapper around the submodule), `pipeline`, `viz`, `demo` (command line), `app` (Gradio), `assets` |
 | `capstone-dof-estimation/` | Submodule: fork of [samuelmoyal/Restart](https://github.com/samuelmoyal/Restart), branch `crab-ekf`, which adds the crab-angle EKF state |
-| `tools/` | Reproduce the model: `filter_visibility.py`, `subsample_split.py`, then `python -m tools.deeplab.train` and `python -m tools.deeplab.eval` |
+| `tools/` | Reproduce the model: `filter_visibility.py`, `subsample_split.py`, then `python -m tools.deeplab.train` and `python -m tools.deeplab.eval`; `precompute_runs.py` rebuilds the preloaded runs |
 | `tests/` | The smoke test |
 
 ## Experiments
@@ -111,7 +130,7 @@ Tag `pre-restructure` is the repository as it was before this split.
 
 ## Limitations
 
-- Needs a CUDA GPU. DeepLabV3+'s network takes about 16 ms per 1280×720 frame on an
+- Processing a flight needs a CUDA GPU (preloaded runs do not). DeepLabV3+'s network takes about 16 ms per 1280×720 frame on an
   RTX 3090 Ti; `--device cpu` works but is slow.
 - The known quantities (along-track, height, pitch, roll) come from the simulator's logs,
   standing in for an INS.

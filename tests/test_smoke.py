@@ -1,4 +1,5 @@
-"""End-to-end smoke test on the two sample flights (needs a GPU and `hf auth login`).
+"""Smoke tests: the full pipeline on two sample flights (needs a GPU), and every preloaded
+run loads and reproduces its saved summary (no GPU). Both need `hf auth login`.
 
     python -m pytest tests            # or: python tests/test_smoke.py
 
@@ -6,9 +7,10 @@ Reference numbers were produced on an RTX 3090 Ti with the published weights; th
 tolerances leave room for GPU and library differences, not for a broken pipeline.
 """
 
+import json
 import math
 
-from e2e_runway_dof_estimation import pipeline
+from e2e_runway_dof_estimation import assets, pipeline
 
 REFERENCE = {   # flight: (frames, yaw MAE deg, cross-track MAE m, mask IoU)
     "weather_000197": (86, 0.0176, 0.237, 0.974),     # fog, EGNH 28
@@ -31,7 +33,22 @@ def test_samples():
         check(flight, ref)
 
 
+def check_preloaded(name):
+    saved = json.loads((assets.preloaded_run(name) / "records.json").read_text())["meta"]["summary"]
+    s = pipeline.load_preloaded(name).summary()
+    assert json.dumps(s, sort_keys=True) == json.dumps(saved, sort_keys=True), name
+    return s
+
+
+def test_preloaded():
+    for name in assets.SAMPLES:
+        check_preloaded(name)
+
+
 if __name__ == "__main__":
+    for name in assets.SAMPLES:
+        s = check_preloaded(name)
+        print(f"ok  preloaded {name}: {s['frames']} frames, cross-track {s['xtrack_mae_m']:.2f} m")
     for flight, ref in REFERENCE.items():
         s = check(flight, ref)
         print(f"ok  {flight}: {s['frames']} frames, yaw {s['yaw_mae_deg']:.3f} deg, "

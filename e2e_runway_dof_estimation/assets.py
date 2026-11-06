@@ -1,4 +1,5 @@
-"""Demo assets on the Hugging Face Hub: DeepLabV3+ weights, the runway database, sample flights.
+"""Demo assets on the Hugging Face Hub: DeepLabV3+ weights, the runway database, sample flights,
+and preloaded runs (saved results + a replay video, so the app shows them with no computation).
 
 They live in the private model repo linok-bc/e2e-runway-dof-estimation, so `hf auth login`
 (or HF_TOKEN) is needed once. Files are cached by huggingface_hub; sample flights are
@@ -10,7 +11,14 @@ import subprocess
 from pathlib import Path
 
 REPO = "linok-bc/e2e-runway-dof-estimation"
-SAMPLES = ("weather_000197", "weather_000613")   # fog EGNH 28; crosswind EDDG 25
+# Sample flights, each also a preloaded run: the median-scoring test flight of its condition.
+SAMPLES = {
+    "weather_000613": "EDDG 25, light rain, 7.9 m/s crosswind",
+    "weather_000197": "EGNH 28, fog, 1.2 km visibility",
+    "weather_000414": "ESOK 21, heavy rain",
+    "weather_000021": "EFKS 12, mist",
+    "easy_000116": "EFIV 22, clear",
+}
 CACHE = Path(os.environ.get("E2E_RUNWAY_CACHE", Path.home() / ".cache/e2e_runway_dof_estimation"))
 
 
@@ -40,11 +48,24 @@ def sample_flight(name: str) -> Path:
     return out
 
 
+def preloaded_run(name: str) -> Path:
+    """Folder with a saved run's records.json and masks.npz (pipeline.Result.save)."""
+    if name not in SAMPLES:
+        raise ValueError(f"unknown run {name!r}; choose from {tuple(SAMPLES)}")
+    for f in ("records.json", "masks.npz"):
+        path = _fetch(f"runs/{name}/{f}")
+    return path.parent
+
+
+def preloaded_video(name: str) -> Path:
+    return _fetch(f"runs/{name}/replay.mp4")
+
+
 def download_all() -> None:
     print("weights:", weights())
     print("runways:", runways_dat())
     for s in SAMPLES:
-        print(f"{s}:", sample_flight(s))
+        print(f"{s}:", sample_flight(s), preloaded_run(s), preloaded_video(s))
 
 
 if __name__ == "__main__":

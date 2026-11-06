@@ -7,6 +7,7 @@
 Cross-track is reported + RIGHT of the centreline (Samuel's estimator uses + left).
 """
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -29,6 +30,28 @@ class Result:
     def frame(self, index):
         return next(r for r in self.records if r["frame"] == index)
 
+    def save(self, out):
+        """records.json + masks.npz: everything but the camera frames, which stay in the flight folder."""
+        out = Path(out)
+        out.mkdir(parents=True, exist_ok=True)
+        meta = {"flight": self.flight.name, "airport": self.flight.airport, "runway": self.flight.runway,
+                "summary": self.summary()}
+        (out / "records.json").write_text(json.dumps({"meta": meta, "records": self.records}))
+        idx = sorted(self.masks)
+        np.savez_compressed(out / "masks.npz", indices=np.array(idx), masks=np.stack([self.masks[i] for i in idx]))
+
+    @classmethod
+    def load(cls, saved, flight_root, runways=None):
+        """A saved run back, with no segmentation or estimation: the calibration is rebuilt
+        from the runway database, the frames are read from flight_root."""
+        saved = Path(saved)
+        flight = load_flight(flight_root)
+        runways = runways or load_runways(assets.runways_dat())
+        records = json.loads((saved / "records.json").read_text())["records"]
+        with np.load(saved / "masks.npz") as z:
+            masks = dict(zip(z["indices"].tolist(), z["masks"]))
+        return cls(flight, runway_calibration(flight, runways), records, masks)
+
     def summary(self) -> dict:
         def mae(rs, k):
             v = np.abs([r[k] for r in rs if np.isfinite(r[k])])
@@ -44,6 +67,11 @@ class Result:
                 out["by_range"][f"{lo}-{hi} m"] = {"frames": len(rs), "yaw_mae_deg": mae(rs, "yaw_err"),
                                                   "xtrack_mae_m": mae(rs, "xt_err"), "mask_iou": mae(rs, "iou")}
         return out
+
+
+def load_preloaded(name) -> Result:
+    """A preloaded run (assets.SAMPLES): downloads its saved results and frames, computes nothing."""
+    return Result.load(assets.preloaded_run(name), assets.sample_flight(name))
 
 
 def resolve(flight) -> Path:
