@@ -1,7 +1,7 @@
 """End to end on one flight: frames -> DeepLabV3+ runway masks -> yaw and cross-track.
 
     from e2e_runway_dof_estimation import pipeline
-    result = pipeline.run("weather_000613")          # a sample name, or a flight folder
+    result = pipeline.run("weather_000185")          # a sample name, or a flight folder
     print(result.summary())
 
 Cross-track is reported + RIGHT of the centreline (Samuel's estimator uses + left).

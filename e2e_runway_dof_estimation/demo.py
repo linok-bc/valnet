@@ -1,10 +1,10 @@
 """Command line: runway masks, yaw and cross-track for one flight; writes a video and a CSV.
 
-    python -m e2e_runway_dof_estimation.demo --flight weather_000613
+    python -m e2e_runway_dof_estimation.demo --flight weather_000185
     python -m e2e_runway_dof_estimation.demo --flight /path/to/xp12_dataset_weather/000414 --out runs/000414
 
---flight is a sample name (weather_000197: fog; weather_000613: 7.9 m/s crosswind), downloaded
-on first use, or a flight folder from the XP12 dataset.
+--flight is a sample name (assets.SAMPLES, e.g. weather_000185: 7.3 m/s crosswind; weather_000410:
+fog), downloaded on first use, or a flight folder from the XP12 dataset.
 """
 
 import argparse

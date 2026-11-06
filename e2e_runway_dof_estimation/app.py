@@ -1,6 +1,7 @@
 """Web demo (Gradio): preloaded runs show instantly; new flights run the full pipeline.
 
     python -m e2e_runway_dof_estimation.app            # http://127.0.0.1:7860
+    python -m e2e_runway_dof_estimation.app --share    # + a public gradio.live link (~1 week)
 
 A preloaded run (assets.SAMPLES) is a saved result plus its replay video: picking one
 downloads it and computes nothing, so it needs no GPU. "Run a flight folder" runs
@@ -98,7 +99,7 @@ def make_video(key):
     return str(path)
 
 
-def build():
+def build(folder_runs=True):
     labels = [_label(n) for n in assets.SAMPLES]
     with gr.Blocks(title="Runway DOF estimation") as ui:
         gr.Markdown("## Runway yaw and cross-track from a camera\n"
@@ -109,7 +110,7 @@ def build():
         with gr.Row():
             run = gr.Dropdown(labels, value=labels[0], label="Preloaded run",
                               info="Saved results: shown instantly, no GPU needed")
-            with gr.Column():
+            with gr.Column(visible=folder_runs):
                 folder = gr.Textbox(label="…or run a flight folder (GPU)", lines=1, max_lines=1,
                                     placeholder="datasets/xp12_dataset_weather/000414")
                 go = gr.Button("Run", variant="primary")
@@ -122,7 +123,8 @@ def build():
         outs = [key, summary, slider, frame, video]
         run.change(load_run, run, outs)
         ui.load(load_run, run, outs)
-        go.click(run_flight, folder, outs)
+        if folder_runs:
+            go.click(run_flight, folder, outs)
         slider.change(show_frame, [key, slider], frame)
         vbtn.click(make_video, key, video)
     return ui
@@ -132,10 +134,21 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=7860)
+    ap.add_argument("--share", action="store_true",
+                    help="also serve a public gradio.live link that anyone with the URL can open")
+    ap.add_argument("--auth", metavar="USER:PASSWORD", help="require this login (recommended with --share)")
+    ap.add_argument("--allow-folder-runs", action="store_true",
+                    help="with --share, keep 'run a flight folder': it lets visitors run the pipeline "
+                         "on any path on this machine (off by default when shared)")
     args = ap.parse_args()
+    auth = tuple(args.auth.split(":", 1)) if args.auth else None
+    if args.auth and len(auth) != 2:
+        ap.error("--auth takes USER:PASSWORD")
+    folder_runs = not args.share or args.allow_folder_runs
     from huggingface_hub.constants import HF_HUB_CACHE
     # Preloaded replay videos are served straight from the Hugging Face cache.
-    build().launch(server_name=args.host, server_port=args.port, allowed_paths=[HF_HUB_CACHE])
+    build(folder_runs).launch(server_name=args.host, server_port=args.port, share=args.share, auth=auth,
+                              allowed_paths=[HF_HUB_CACHE])
 
 
 if __name__ == "__main__":

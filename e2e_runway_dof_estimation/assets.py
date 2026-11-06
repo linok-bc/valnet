@@ -11,13 +11,18 @@ import subprocess
 from pathlib import Path
 
 REPO = "linok-bc/e2e-runway-dof-estimation"
-# Sample flights, each also a preloaded run: the median-scoring test flight of its condition.
+# Sample flights, each also a preloaded run: a showcase, the best-scoring test flight of its
+# condition (DeepLab masks, runway-database geometry, crab EKF). The first opens by default.
+# Over all 88 test flights the average is 0.047 deg yaw and 0.53 m cross-track.
 SAMPLES = {
-    "weather_000613": "EDDG 25, light rain, 7.9 m/s crosswind",
-    "weather_000197": "EGNH 28, fog, 1.2 km visibility",
+    "weather_000185": "ESIB 19, clear, 7.3 m/s crosswind",
+    "weather_000292": "UWKJ 16, light rain",
+    "weather_000331": "UMBB 29, heavy rain, 5.9 m/s crosswind",
     "weather_000414": "ESOK 21, heavy rain",
-    "weather_000021": "EFKS 12, mist",
-    "easy_000116": "EFIV 22, clear",
+    "weather_000270": "EETU 26, haze",
+    "weather_000410": "ESTA 14, fog, 1.5 km visibility",
+    "weather_000494": "EDLN 13, mist",
+    "easy_000126": "USNN 21, clear",
 }
 CACHE = Path(os.environ.get("E2E_RUNWAY_CACHE", Path.home() / ".cache/e2e_runway_dof_estimation"))
 

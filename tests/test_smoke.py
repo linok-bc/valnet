@@ -1,4 +1,4 @@
-"""Smoke tests: the full pipeline on two sample flights (needs a GPU), and every preloaded
+"""Smoke tests: the full pipeline on two of the sample flights (needs a GPU), and every preloaded
 run loads and reproduces its saved summary (no GPU). Both need `hf auth login`.
 
     python -m pytest tests            # or: python tests/test_smoke.py
@@ -13,8 +13,8 @@ import math
 from e2e_runway_dof_estimation import assets, pipeline
 
 REFERENCE = {   # flight: (frames, yaw MAE deg, cross-track MAE m, mask IoU)
-    "weather_000197": (86, 0.0176, 0.237, 0.974),     # fog, EGNH 28
-    "weather_000613": (260, 0.033, 0.29, 0.919),      # 7.9 m/s crosswind, EDDG 25
+    "weather_000185": (237, 0.0294, 0.188, 0.946),     # 7.3 m/s crosswind, ESIB 19
+    "weather_000410": (108, 0.024, 0.231, 0.957),     # fog, ESTA 14
 }
 
 

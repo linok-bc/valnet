@@ -45,7 +45,7 @@ hf auth login        # the assets repo is private
 Run one flight from the command line; this writes `replay.mp4`, `frames.csv` and `summary.json`:
 
 ```bash
-python -m e2e_runway_dof_estimation.demo --flight weather_000613
+python -m e2e_runway_dof_estimation.demo --flight weather_000185
 ```
 
 Or open the web app at http://127.0.0.1:7860:
@@ -54,30 +54,45 @@ Or open the web app at http://127.0.0.1:7860:
 python -m e2e_runway_dof_estimation.app
 ```
 
+To share the app, `--share` adds a public `gradio.live` link (valid about a week) that anyone
+with the URL can open. Add a login with `--auth user:password`. While shared, the "run a flight
+folder" box is hidden, because it would let visitors run the pipeline on any path on this
+machine; `--allow-folder-runs` brings it back.
+
+```bash
+python -m e2e_runway_dof_estimation.app --share --auth demo:<password>
+```
+
 The app opens on a **preloaded run**: a saved result with its replay video. Switching between
-the five preloaded runs computes nothing, so it works without a GPU; the first view of each
-downloads its frames (50–150 MB). Scrub through the frames with the slider. To process a new
+the eight preloaded runs computes nothing, so it works without a GPU; the first view of each
+downloads its frames (40–150 MB). Scrub through the frames with the slider. To process a new
 flight folder, enter its path and press Run (needs a GPU).
 
-| Preloaded run | Flight | Yaw MAE | Cross-track MAE |
-|---|---|---|---|
-| `weather_000613` | EDDG 25, light rain, 7.9 m/s crosswind | 0.033° | 0.29 m |
-| `weather_000197` | EGNH 28, fog, 1.2 km visibility | 0.018° | 0.24 m |
-| `weather_000414` | ESOK 21, heavy rain | 0.014° | 0.19 m |
-| `weather_000021` | EFKS 12, mist | 0.044° | 0.92 m |
-| `easy_000116` | EFIV 22, clear | 0.032° | 0.91 m |
+The preloaded runs are a showcase: for each condition, the test flight with the lowest
+cross-track error. Over all 88 test flights the average is 0.047° yaw and 0.53 m cross-track
+(see Results).
 
-Each is the test flight with the median mask IoU for its condition. The mist and clear flights
-show the estimator's weak spot: cross-track is off by 1–2 m from 1 km out and converges as the
-runway nears.
+| Preloaded run | Flight | Frames | Yaw MAE | Cross-track MAE |
+|---|---|---|---|---|
+| `weather_000185` | ESIB 19, clear, 7.3 m/s crosswind | 237 | 0.029° | 0.19 m |
+| `weather_000292` | UWKJ 16, light rain | 230 | 0.040° | 0.14 m |
+| `weather_000331` | UMBB 29, heavy rain, 5.9 m/s crosswind | 233 | 0.023° | 0.30 m |
+| `weather_000414` | ESOK 21, heavy rain | 195 | 0.014° | 0.19 m |
+| `weather_000270` | EETU 26, haze | 232 | 0.012° | 0.20 m |
+| `weather_000410` | ESTA 14, fog, 1.5 km visibility | 108 | 0.024° | 0.23 m |
+| `weather_000494` | EDLN 13, mist | 255 | 0.024° | 0.47 m |
+| `easy_000126` | USNN 21, clear | 245 | 0.011° | 0.17 m |
+
+Fog and heavy-rain approaches start 600–1350 m out, where the runway comes into view. Mist is
+the hardest condition: even its best flight is off by 0.7 m beyond 1 km.
 
 From Python:
 
 ```python
 from e2e_runway_dof_estimation import pipeline
-result = pipeline.run("weather_000197")    # a sample name, or a flight folder
+result = pipeline.run("weather_000410")    # a sample name, or a flight folder
 print(result.summary())
-saved = pipeline.load_preloaded("weather_000021")   # a preloaded run, no computation
+saved = pipeline.load_preloaded("weather_000185")   # a preloaded run, no computation
 ```
 
 `--flight` takes one of the five sample names above, downloaded on first use, or any flight
