@@ -51,7 +51,8 @@ def tilt_sigma(range_m, model):
 
 def tilt_update(ekf, z, R):
     """Scalar update of lat; returns (nis, accepted)."""
-    H = np.array([0.0, 0.0, 1.0])
+    H = np.zeros(ekf.s.size)          # lat is state 2 in both the 3-state and crab (4-state) filter
+    H[2] = 1.0
     S = float(H @ ekf.P @ H) + R
     innov = z - ekf.s[2]
     nis = innov * innov / S
@@ -59,7 +60,7 @@ def tilt_update(ekf, z, R):
         return nis, False
     K = ekf.P @ H / S
     ekf.s = ekf.s + K * innov
-    ekf.P = (np.eye(3) - np.outer(K, H)) @ ekf.P
+    ekf.P = (np.eye(ekf.s.size) - np.outer(K, H)) @ ekf.P
     return nis, True
 
 
@@ -68,7 +69,9 @@ def run(ep, fuse, model):
     seq = load_sequence(data.ROOT / "datasets/xp12_dataset", ep)
     cache = YoloMaskCache(data.HERE / "cache/masks")
     estimator = make_method("maskfit_analytic_lm")
-    cfg = RunConfig(source="yolo", mode="track", kf=True)
+    # The original 3-state EKF, which every joint_demo result was produced with
+    # (Restart's crab-angle state, kf_crab, is newer and on by default).
+    cfg = RunConfig(source="yolo", mode="track", kf=True, kf_crab=False)
     scene = scene_from_calibration(calib)
     df, _, _ = data.load(ep)
     tilt = dict(zip(df.frame, -df.xt_est))

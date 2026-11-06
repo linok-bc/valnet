@@ -32,7 +32,8 @@ def one(job):
     calib = load_calibrations(data.CALIB)[ep]
     seq = load_sequence(args.root, ep)
     cache = YoloMaskCache(args.masks)
-    cfg = RunConfig(source="yolo", mode="track", kf=not args.no_kf)
+    # kf_crab=False: the original 3-state EKF, which cache/heading was produced with.
+    cfg = RunConfig(source="yolo", mode="track", kf=not args.no_kf, kf_crab=False)
     rows = run_sequence(seq, calib, make_method(args.method), cfg, yolo=cache,
                         frame_indices=cache.available_indices(ep))
     out = Path(args.out) / f"{ep}.csv"

@@ -209,3 +209,5 @@ results/
 
 # joint demo: regenerable mask/heading/fusion caches
 experiments/joint_demo/cache/
+# restart_test: regenerable masks / calibration / per-frame rows
+experiments/restart_test/cache/
