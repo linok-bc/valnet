@@ -211,3 +211,10 @@ results/
 experiments/joint_demo/cache/
 # restart_test: regenerable masks / calibration / per-frame rows
 experiments/restart_test/cache/
+
+# demo outputs and local tool config
+demo_out/
+.claude/
+*.egg-info/
+# leftover local outputs of the old experiments (the code is on the exp/* branches)
+experiments/

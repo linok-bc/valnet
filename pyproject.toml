@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "e2e_runway_dof_estimation"
+version = "0.1.0"
+description = "Runway yaw and cross-track from a forward camera: DeepLabV3+ masks into a crab-angle EKF mask-fit estimator"
+requires-python = ">=3.10"
+dependencies = [
+    "torch", "torchvision", "numpy", "pandas", "matplotlib", "pyproj", "opencv-python-headless",
+    "huggingface_hub", "gradio",
+]
+
+[project.optional-dependencies]
+train = ["omegaconf", "tqdm"]
+
+[project.scripts]
+e2e-runway-demo = "e2e_runway_dof_estimation.demo:main"
+e2e-runway-app = "e2e_runway_dof_estimation.app:main"
+
+[tool.setuptools.packages.find]
+include = ["e2e_runway_dof_estimation*"]

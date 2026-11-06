@@ -1,14 +1,22 @@
-name: ValNet
+name: e2e-runway-dof
 channels:
   - conda-forge
 dependencies:
   - python=3.12
-  - pytorch
-  - ultralytics
-  - torchvision
+  # The CUDA builds: left unpinned, the solver can fall back to the CPU build. For a
+  # CPU-only machine use plain `pytorch` and `torchvision` and run with --device cpu.
+  - pytorch=*=cuda*
+  - torchvision=*=cuda*
+  - numpy
+  - pandas
+  - matplotlib       # capstone-dof-estimation's evaluation code
+  - pyproj           # capstone-dof-estimation's runway model
+  - opencv
+  - omegaconf        # tools/deeplab training config
   - tqdm
-  - torchmetrics
-  - faster-coco-eval
-  - tensorboard
-  - omegaconf
-prefix: /home/linok/miniforge3/envs/ValNet
+  - huggingface_hub  # demo assets
+  - ffmpeg           # replay videos
+  - zstd             # sample-flight archives
+  - pip
+  - pip:
+      - gradio

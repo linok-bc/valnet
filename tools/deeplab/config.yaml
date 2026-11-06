@@ -1,0 +1,24 @@
+# DeepLabV3+ (ResNet-50, COCO-pretrained backbone + ASPP) on the new xp12 data.
+# Same frame lists as YOLO and VALNet (configs/xp12_combined.yaml); native 1280x720 input.
+
+data:
+  root: datasets/xp12_splits/combined
+  train: train_every5.txt       # visibility-filtered, every 5th frame per flight
+  val: val_every5.txt
+  test: test.txt                # every kept frame
+  fliplr: 0.5                   # image and mask flip together, so labels stay consistent
+  jitter: 0.2                   # brightness / contrast
+
+train:
+  epochs: 50                    # same budget as the YOLO and VALNet runs
+  batch: 8
+  workers: 12
+  lr: 0.01                      # SGD, DeepLab's poly schedule: lr * (1 - it/total)^0.9
+  pretrained_lr_mult: 0.1       # backbone + ASPP; the new decoder and head train at 1x
+  momentum: 0.9
+  weight_decay: 0.0001
+  warmup_iters: 1000
+  dice_weight: 1.0              # loss = BCE + dice_weight * Dice
+  amp: True
+  val_freq: 5
+  run_dir: runs/deeplab/xp12_combined
