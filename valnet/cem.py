@@ -1,15 +1,14 @@
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
+
 
 class CEM(nn.Module):
-    """
-    section 4.2
-    Fourier-based contextual enhancement of RGB images
+    """section 4.2 Fourier-based contextual enhancement of RGB images.
     """
 
-    def __init__(self, in_channels: int = 3, sigma: int = 2, patch_size = 8, depthwise: bool = False):
+    def __init__(self, in_channels: int = 3, sigma: int = 2, patch_size=8, depthwise: bool = False):
         super().__init__()
 
         """
@@ -33,35 +32,24 @@ class CEM(nn.Module):
         self.spatial_attention_kernel = nn.Conv2d(2, 1, 3, padding=1)
         self.highpass_kernel = nn.Conv2d(self.in_channels, self.in_channels, 3, padding=1, groups=groups)
 
-
-
     def _lowpass(self, x):
-        """
-        param[in] x: input matrix of shape [B, C, H, W]
-        param[out] x3: output matrix of shape [B, C, H, W]
+        """param[in] x: input matrix of shape [B, C, H, W] param[out] x3: output matrix of shape [B, C, H, W].
         """
         H, W = x.shape[2:]
         x1 = self.lowpass_conv(x)
         x2 = self.lowpass_pool(x1)
-        x3 = F.interpolate(x2, size=(H, W), mode='bilinear', align_corners=False)
+        x3 = F.interpolate(x2, size=(H, W), mode="bilinear", align_corners=False)
         return x3
 
-
-
     def _generate_heatmap(self, x):
-        """
-        param[in] x: input matrix of shape [B, C, H, W]
-        param[out] out: heatmap of shape [B, H, W]
+        """param[in] x: input matrix of shape [B, C, H, W] param[out] out: heatmap of shape [B, H, W].
         """
         out = x.mean(dim=1)
         return out
 
-
-
     def _heatmap_softmax(self, heatmap):
-        """
-        [in] heatmap: input heatmap of shape [B, H, W]
-        [out] weight: softmaxed heatmap corresponding to variable U in equation 6 with shape [B, H, W]
+        """[in] heatmap: input heatmap of shape [B, H, W] [out] weight: softmaxed heatmap corresponding to variable U in
+        equation 6 with shape [B, H, W].
 
         Equation 6 softmaxes WITHIN each local s x s region, not across regions:
         "in each local region of size s x s, guided by M, a vector U with the
@@ -71,18 +59,18 @@ class CEM(nn.Module):
         high-temperature area S_th that Equation 5 asks for — and each region's
         weights sum to 1 independently of every other region.
         """
-
         B, H, W = heatmap.shape
         s = self.patch_size
 
-        # pad heatmap is not directly divisble by s
+        # pad heatmap is not directly divisible by s
         pad_y, pad_x = (s - H % s) % s, (s - W % s) % s
         pad_y_left, pad_y_right = int(np.floor(pad_y / 2)), int(np.ceil(pad_y / 2))
         pad_x_left, pad_x_right = int(np.floor(pad_x / 2)), int(np.ceil(pad_x / 2))
         # -inf so padded cells get zero softmax weight. Padding is < s on each
         # side, so every region still contains at least one real element.
         padded_heatmap = F.pad(
-            heatmap, (pad_x_left, pad_x_right, pad_y_left, pad_y_right),
+            heatmap,
+            (pad_x_left, pad_x_right, pad_y_left, pad_y_right),
             value=float("-inf"),
         )
         Hp, Wp = padded_heatmap.shape[-2:]
@@ -96,32 +84,28 @@ class CEM(nn.Module):
 
         # back to [B, Hp, Wp], then drop the padding we added
         weight = weight.view(B, nH, nW, s, s).permute(0, 1, 3, 2, 4).reshape(B, Hp, Wp)
-        return weight[:, pad_y_left:pad_y_left + H, pad_x_left:pad_x_left + W]
-
-
+        return weight[:, pad_y_left : pad_y_left + H, pad_x_left : pad_x_left + W]
 
     def _highpass(self, x):
-        """
-        [in] x: high-pass features corresponding to x_bar from figure 9. has shape [B, C, H, W]
-        [out] x_smile: output from the high-path output
+        """[in] x: high-pass features corresponding to x_bar from figure 9. has shape [B, C, H, W] [out] x_smile: output
+        from the high-path output.
         """
         # compute spatial attention
-        f_max = torch.max(x, dim=1, keepdim=True).values            # [B, 1, H, W]
-        f_mean = torch.mean(x, dim=1, keepdim=True)                 # [B, 1, H, W]
-        f_concat = torch.cat([f_max, f_mean], dim=1)                # [B, 2, H, W]
-        x_s = torch.sigmoid(self.spatial_attention_kernel(f_concat))    # [B, 1, H, W]
+        f_max = torch.max(x, dim=1, keepdim=True).values  # [B, 1, H, W]
+        f_mean = torch.mean(x, dim=1, keepdim=True)  # [B, 1, H, W]
+        f_concat = torch.cat([f_max, f_mean], dim=1)  # [B, 2, H, W]
+        x_s = torch.sigmoid(self.spatial_attention_kernel(f_concat))  # [B, 1, H, W]
 
         # compute X_smile
         y_smile = (x_s * self.highpass_kernel(x)) + x
         return y_smile
 
-
     def forward(self, x):
-        # perform heatmap-guided and low-pass filter paths, the combine their results 
+        # perform heatmap-guided and low-pass filter paths, the combine their results
         x_tilde = self._lowpass(x)
         u = self._heatmap_softmax(self._generate_heatmap(x))
         x_frown = torch.mul(x_tilde, u[:, None, :, :])
-        
+
         # high-pass filter path
         x_bar = x - x_tilde
         y_smile = self._highpass(x_bar)

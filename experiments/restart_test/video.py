@@ -38,19 +38,21 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "capstone-dof-estimation"))
 
-from evaluation.video import _quad  # noqa: E402
-from pose_estimation.g_dof import GDofParams  # noqa: E402
-from runway_detection.xp12.calibration import (load_calibrations, pose_from_frame,  # noqa: E402
-                                               scene_from_calibration)
-from runway_detection.xp12.loader import load_sequence  # noqa: E402
+from evaluation.video import _quad
+from pose_estimation.g_dof import GDofParams
+from runway_detection.xp12.calibration import (
+    load_calibrations,
+    pose_from_frame,
+    scene_from_calibration,
+)
+from runway_detection.xp12.loader import load_sequence
 
 CACHE = Path(__file__).resolve().parent / "cache"
 W, H, CAM_W, CAM_H = 1920, 1080, 1280, 720
 VIOLET, AQUA, RED, AMBER = (230, 90, 170), (230, 220, 60), (70, 70, 235), (40, 180, 255)
 GREEN = (90, 210, 90)
-SECOND = {"crab": ("rows_crab", "fixed EKF (crab state)", GREEN),
-          "none": ("rows_nokf", "per frame (no EKF)", AMBER)}
-BLUE, TEAL = (214, 120, 42), (122, 175, 27)   # summary page's YOLO and DeepLab colours
+SECOND = {"crab": ("rows_crab", "fixed EKF (crab state)", GREEN), "none": ("rows_nokf", "per frame (no EKF)", AMBER)}
+BLUE, TEAL = (214, 120, 42), (122, 175, 27)  # summary page's YOLO and DeepLab colors
 # --pair masks: the fixed EKF fed by each segmenter (compare_masks.py rows)
 MASK_PAIR = (("rows_yolo_crab", "YOLOv8 masks", BLUE), ("rows_deeplab_crab", "DeepLabV3+ masks", TEAL))
 WHITE, GREY, DARK, BG = (240, 240, 240), (150, 150, 150), (70, 70, 70), (24, 24, 24)
@@ -94,14 +96,17 @@ class Plot:
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--flight", required=True, help="<dataset>/<episode>")
     ap.add_argument("--out", default=str(ROOT / "results/xp12_combined/demos"))
     ap.add_argument("--fps", type=int, default=15)
     ap.add_argument("--second", choices=list(SECOND), default="crab")
-    ap.add_argument("--pair", choices=["filters", "masks"], default="filters",
-                    help="filters: original EKF vs --second; masks: fixed EKF on YOLO vs DeepLab masks")
+    ap.add_argument(
+        "--pair",
+        choices=["filters", "masks"],
+        default="filters",
+        help="filters: original EKF vs --second; masks: fixed EKF on YOLO vs DeepLab masks",
+    )
     args = ap.parse_args()
 
     ds, ep = args.flight.split("/")
@@ -110,14 +115,14 @@ def main():
     scene = scene_from_calibration(calib)
     if args.pair == "masks":
         (rows1, label1, C1), (rows2, label2, C2) = MASK_PAIR
-        masks, tag = {}, "masks"          # two segmenters: draw only the estimated runways
+        masks, tag = {}, "masks"  # two segmenters: draw only the estimated runways
     else:
         rows1, label1, C1 = "rows", "original EKF", RED
         rows2, label2, C2 = SECOND[args.second]
         z = np.load(CACHE / "masks" / ds / f"{ep}.npz")
         masks, tag = dict(zip(z["indices"].tolist(), z["masks"])), args.second
     ekf, raw = read_rows(rows1, ds, ep), read_rows(rows2, ds, ep)
-    CT = (245, 245, 245) if args.pair == "masks" else AQUA   # truth colour; white keeps it apart from teal
+    CT = (245, 245, 245) if args.pair == "masks" else AQUA  # truth color; white keeps it apart from teal
     frames = {f.index: f for f in seq.frames}
     wj = ROOT / "datasets" / ds / ep / "weather.json"
     w = json.loads(wj.read_text()) if wj.exists() else {"regime": "easy", "crosswind_msc": 0.0}
@@ -138,9 +143,32 @@ def main():
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     dst = out / f"samuel_{tag}_{ds.replace('xp12_dataset_', '')}_{ep}.mp4"
-    ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-                           "-s", f"{W}x{H}", "-r", str(args.fps), "-i", "-", "-c:v", "libx264",
-                           "-pix_fmt", "yuv420p", "-crf", "22", str(dst)], stdin=subprocess.PIPE)
+    ff = subprocess.Popen(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "bgr24",
+            "-s",
+            f"{W}x{H}",
+            "-r",
+            str(args.fps),
+            "-i",
+            "-",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-crf",
+            "22",
+            str(dst),
+        ],
+        stdin=subprocess.PIPE,
+    )
     prev = None
     for k, i in enumerate(idx):
         f = frames[i]
@@ -151,21 +179,34 @@ def main():
         img = img.astype(np.uint8)
         params = GDofParams.from_pose(pose_from_frame(f, calib), scene)
         rng, xt_t, yaw_t = truth[i]
-        for (lat_r, yaw), color, th in [((-xt_t, yaw_t), CT, 2), ((-est_r[i][0], est_r[i][1]), C2, 2),
-                                        ((-est_e[i][0], est_e[i][1]), C1, 2)]:
+        for (lat_r, yaw), color, th in [
+            ((-xt_t, yaw_t), CT, 2),
+            ((-est_r[i][0], est_r[i][1]), C2, 2),
+            ((-est_e[i][0], est_e[i][1]), C1, 2),
+        ]:
             q = _quad(scene, params, yaw, lat_r)
             if q is not None:
                 cv2.polylines(img, [np.round(q).astype(np.int32)], True, color, th, cv2.LINE_AA)
 
         canvas = np.full((H, W, 3), BG, np.uint8)
         canvas[:CAM_H, :CAM_W] = img
-        done = idx[:k + 1]
-        p_xt.draw(canvas, [([(truth[j][0], truth[j][1]) for j in done], CT),
-                           ([(truth[j][0], est_r[j][0]) for j in done], C2),
-                           ([(truth[j][0], est_e[j][0]) for j in done], C1)])
-        p_yaw.draw(canvas, [([(truth[j][0], truth[j][2]) for j in done], CT),
-                            ([(truth[j][0], est_r[j][1]) for j in done], C2),
-                            ([(truth[j][0], est_e[j][1]) for j in done], C1)])
+        done = idx[: k + 1]
+        p_xt.draw(
+            canvas,
+            [
+                ([(truth[j][0], truth[j][1]) for j in done], CT),
+                ([(truth[j][0], est_r[j][0]) for j in done], C2),
+                ([(truth[j][0], est_e[j][0]) for j in done], C1),
+            ],
+        )
+        p_yaw.draw(
+            canvas,
+            [
+                ([(truth[j][0], truth[j][2]) for j in done], CT),
+                ([(truth[j][0], est_r[j][1]) for j in done], C2),
+                ([(truth[j][0], est_e[j][1]) for j in done], C1),
+            ],
+        )
 
         # crab angle: nose (yaw) minus ground-track direction, from consecutive truth positions
         crab = math.nan
@@ -175,15 +216,30 @@ def main():
         prev = (rng, xt_t)
 
         y0 = CAM_H + 50
-        text(canvas, f"Samuel's estimator (Restart, maskfit_analytic_lm) on {ds.replace('xp12_dataset_', '')}/{ep}"
-                     f"  {seq.airport} {seq.runway}", (30, y0), 0.75, WHITE, 2)
-        text(canvas, f"weather: {w['regime']}   crosswind {abs(w['crosswind_msc']):.1f} m/s   "
-                     f"range {rng:,.0f} m   height {params.height_m:.0f} m", (30, y0 + 38), 0.65, GREY)
+        text(
+            canvas,
+            f"Samuel's estimator (Restart, maskfit_analytic_lm) on {ds.replace('xp12_dataset_', '')}/{ep}"
+            f"  {seq.airport} {seq.runway}",
+            (30, y0),
+            0.75,
+            WHITE,
+            2,
+        )
+        text(
+            canvas,
+            f"weather: {w['regime']}   crosswind {abs(w['crosswind_msc']):.1f} m/s   "
+            f"range {rng:,.0f} m   height {params.height_m:.0f} m",
+            (30, y0 + 38),
+            0.65,
+            GREY,
+        )
         crab_s = f"{crab:+.2f} deg" if math.isfinite(crab) else "..."
         text(canvas, f"crab angle (nose minus ground track): {crab_s}", (30, y0 + 72), 0.65, WHITE)
-        rows = [("truth", CT, xt_t, yaw_t, None, None),
-                (label1, C1, est_e[i][0], est_e[i][1], est_e[i][0] - xt_t, est_e[i][1] - yaw_t),
-                (label2, C2, est_r[i][0], est_r[i][1], est_r[i][0] - xt_t, est_r[i][1] - yaw_t)]
+        rows = [
+            ("truth", CT, xt_t, yaw_t, None, None),
+            (label1, C1, est_e[i][0], est_e[i][1], est_e[i][0] - xt_t, est_e[i][1] - yaw_t),
+            (label2, C2, est_r[i][0], est_r[i][1], est_r[i][0] - xt_t, est_r[i][1] - yaw_t),
+        ]
         for n, (name, color, xt, yw, exs, eyw) in enumerate(rows):
             yy = y0 + 120 + 36 * n
             cv2.line(canvas, (30, yy - 6), (70, yy - 6), color, 3)
@@ -191,11 +247,22 @@ def main():
             text(canvas, f"cross-track {xt:+6.2f} m", (330, yy), 0.62, WHITE)
             text(canvas, f"yaw {yw:+.3f} deg", (580, yy), 0.62, WHITE)
             if exs is not None:
-                text(canvas, f"error {exs:+5.2f} m / {eyw:+.3f} deg", (800, yy), 0.62,
-                     (110, 110, 255) if abs(exs) > 2 else WHITE)
-        text(canvas, "outlines = runway drawn from each estimate" if not masks else
-                     "camera: violet = YOLO mask; outlines = runway drawn from each estimate",
-             (30, H - 20), 0.5, GREY)
+                text(
+                    canvas,
+                    f"error {exs:+5.2f} m / {eyw:+.3f} deg",
+                    (800, yy),
+                    0.62,
+                    (110, 110, 255) if abs(exs) > 2 else WHITE,
+                )
+        text(
+            canvas,
+            "outlines = runway drawn from each estimate"
+            if not masks
+            else "camera: violet = YOLO mask; outlines = runway drawn from each estimate",
+            (30, H - 20),
+            0.5,
+            GREY,
+        )
         ff.stdin.write(canvas.tobytes())
     ff.stdin.close()
     ff.wait()

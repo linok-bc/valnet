@@ -8,7 +8,7 @@ One metric for every model, so they compare on equal terms:
                 mask = highest-confidence polygon, filled)
 
 Both are scored on the same frame list (default: the visibility-filtered
-combined test split) against the same rasterised labels (deeplab/data.py).
+combined test split) against the same rasterized labels (deeplab/data.py).
 Writes a per-frame CSV and a summary JSON next to --out.
 
     python deeplab/eval.py --weights deeplab/runs/xp12_combined/best.pt
@@ -29,10 +29,18 @@ import torch
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from deeplab.data import XP12Seg, label_mask, read_list  # noqa: E402
+from deeplab.data import XP12Seg, label_mask, read_list
 
-BINS = [("past threshold", None, 0), ("0-150", 0, 150), ("150-300", 150, 300), ("300-600", 300, 600),
-        ("600-1000", 600, 1000), ("1000-1500", 1000, 1500), ("1500-3000", 1500, 3000), (">3000", 3000, 1e9)]
+BINS = [
+    ("past threshold", None, 0),
+    ("0-150", 0, 150),
+    ("150-300", 150, 300),
+    ("300-600", 300, 600),
+    ("600-1000", 600, 1000),
+    ("1000-1500", 1000, 1500),
+    ("1500-3000", 1500, 3000),
+    (">3000", 3000, 1e9),
+]
 
 
 def frame_iou(pred, gt):
@@ -98,28 +106,39 @@ def summarize(rows):
 
     def stat(g):
         iou = np.array([r["iou"] for r in g])
-        return {"n": len(g), "mean_iou": float(iou.mean()), "median_iou": float(np.median(iou)),
-                "p5_iou": float(np.percentile(iou, 5)), "empty_pred": int(sum(r["pred_px"] == 0 for r in g))}
+        return {
+            "n": len(g),
+            "mean_iou": float(iou.mean()),
+            "median_iou": float(np.median(iou)),
+            "p5_iou": float(np.percentile(iou, 5)),
+            "empty_pred": int(sum(r["pred_px"] == 0 for r in g)),
+        }
 
     order = [n for n, _, _ in BINS]
-    return {"overall": stat(groups[("all", "all")]),
-            "by_weather": {k: stat(groups[("weather", k)]) for k in sorted({k for t, k in groups if t == "weather"})},
-            "by_range": {k: stat(groups[("range", k)]) for k in order if ("range", k) in groups}}
+    return {
+        "overall": stat(groups[("all", "all")]),
+        "by_weather": {k: stat(groups[("weather", k)]) for k in sorted({k for t, k in groups if t == "weather"})},
+        "by_range": {k: stat(groups[("range", k)]) for k in order if ("range", k) in groups},
+    }
 
 
 def show(summary, name):
     print(f"\n{name}")
-    for title, t in [("overall", {"all": summary["overall"]}), ("by weather", summary["by_weather"]),
-                     ("by range to threshold (m)", summary["by_range"])]:
+    for title, t in [
+        ("overall", {"all": summary["overall"]}),
+        ("by weather", summary["by_weather"]),
+        ("by range to threshold (m)", summary["by_range"]),
+    ]:
         print(f"  {title}")
         for k, v in t.items():
-            print(f"    {k:16s} n={v['n']:6d}  mean IoU {v['mean_iou']:.4f}  median {v['median_iou']:.4f}  "
-                  f"p5 {v['p5_iou']:.4f}  empty {v['empty_pred']}")
+            print(
+                f"    {k:16s} n={v['n']:6d}  mean IoU {v['mean_iou']:.4f}  median {v['median_iou']:.4f}  "
+                f"p5 {v['p5_iou']:.4f}  empty {v['empty_pred']}"
+            )
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--weights")
     ap.add_argument("--yolo-json")
     ap.add_argument("--list", default="datasets/xp12_splits/combined/test.txt")
@@ -130,7 +149,9 @@ def main():
 
     if args.weights:
         from torch.utils.data import DataLoader
+
         from deeplab.model import DeepLabV3Plus
+
         model = DeepLabV3Plus(pretrained=False).cuda().to(memory_format=torch.channels_last)
         model.load_state_dict(torch.load(args.weights, map_location="cuda"))
         dl = DataLoader(XP12Seg(args.list), args.batch, num_workers=args.workers, pin_memory=True)

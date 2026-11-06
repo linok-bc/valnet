@@ -7,22 +7,21 @@ Usage:
                            --classes runway aiming threshold
 """
 
+import argparse
 import json
 import os
-import argparse
 from pathlib import Path
 
 
 def convert_labelme_to_yolo_seg(json_path, out_dir, class_map):
-    """
-    Convert a single labelme JSON file to YOLO segmentation format.
+    """Convert a single labelme JSON file to YOLO segmentation format.
 
     Args:
         json_path: path to labelme JSON
         out_dir: output directory for .txt label files
         class_map: dict mapping label string -> class id, e.g. {"runway": 0}
     """
-    with open(json_path, "r") as f:
+    with open(json_path) as f:
         data = json.load(f)
 
     # Derive output filename from imagePath in the JSON
@@ -64,7 +63,7 @@ def main():
         nargs="+",
         default=["runway"],
         help="Which labels to include and their order (first = class 0). "
-             "Default: runway only. Example: --classes runway aiming threshold",
+        "Default: runway only. Example: --classes runway aiming threshold",
     )
     args = parser.parse_args()
 
@@ -81,10 +80,11 @@ def main():
         convert_labelme_to_yolo_seg(jf, args.out_dir, class_map)
 
     print(f"Converted {len(json_files)} files -> {args.out_dir}")
-    print(f"\nYAML snippet for your dataset config:")
-    print(f"names:")
+    print("\nYAML snippet for your dataset config:")
+    print("names:")
     for name, idx in class_map.items():
         print(f"  {idx}: {name}")
+
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
 """
-VALNet: Integration with Ultralytics YOLOv8
+VALNet: Integration with Ultralytics YOLOv8.
 ============================================
-    
+
 - Load a pretrained YOLOv8-seg model
 - Replace the neck (PAFPN) with AFPN
 - Insert CEM between backbone and neck
@@ -19,18 +19,16 @@ not start a training run.
 
 import math
 
-import torch.nn as nn
+from torch import nn
 
 from valnet.afpn import AFPN
 from valnet.cem import CEM
 from valnet.oam import OAM
 
 
-
 class VALNetNeck(nn.Module):
-    """
-    Combined CEM + AFPN neck.
-    
+    """Combined CEM + AFPN neck.
+
     Pipeline per Figure 6:
         Backbone P3, P4, P5
             -> CEM applied to each scale (contextual enhancement)
@@ -55,8 +53,9 @@ class VALNetNeck(nn.Module):
         """
         Args:
             features: list of [P3, P4, P5] from backbone
+
         Returns:
-            list of [out_P3, out_P4, out_P5]
+            list of [out_P3, out_P4, out_P5].
         """
         p3, p4, p5 = features
 
@@ -70,12 +69,10 @@ class VALNetNeck(nn.Module):
 
 
 class VALNetModel(nn.Module):
-    """
-    Full VALNet model with clean forward pass.
-    
-    Use this if you need full control over the architecture
-    rather than monkey-patching an Ultralytics model.
-    
+    """Full VALNet model with clean forward pass.
+
+    Use this if you need full control over the architecture rather than monkey-patching an Ultralytics model.
+
     Architecture (Figure 6):
         Input -> Backbone -> CEM (per scale) -> AFPN -> OAM (per scale) -> Head -> Output
     """
@@ -84,7 +81,7 @@ class VALNetModel(nn.Module):
         """
         Args:
             backbone: YOLOv8 backbone (extract from pretrained model)
-            head: YOLOv8-seg head (extract from pretrained model)  
+            head: YOLOv8-seg head (extract from pretrained model)
             ch: channel sizes at P3, P4, P5
             cem_depthwise, afpn_stage1: architecture options, see CEM and AFPN.
                 The defaults build the full-width version (19.3M params);
@@ -92,7 +89,6 @@ class VALNetModel(nn.Module):
                 one (12.8M, vs 12.4M in the paper's Table 6).
         """
         super().__init__()
-
 
         # we get the WHOLE backbone from YOLO; split up to get the multi-channel output
         # if not using YOLOv8s, YOU WILL NEED TO CHANGE THESE!!!
@@ -102,7 +98,7 @@ class VALNetModel(nn.Module):
         self.backbone_p3 = nn.Sequential(*list(backbone[:5]))
         self.backbone_p4 = nn.Sequential(*list(backbone[5:7]))
         self.backbone_p5 = nn.Sequential(*list(backbone[7:10]))
-        
+
         self.neck = VALNetNeck(ch=ch, cem_depthwise=cem_depthwise, afpn_stage1=afpn_stage1)
         self.oams = nn.ModuleList(OAM(c) for c in ch)
         self.head = head
@@ -126,20 +122,17 @@ class VALNetModel(nn.Module):
 
     @classmethod
     def from_ultralytics(cls, model_name, ch, nc=None, **arch):
-        """
-        Extract backbone and head from a pretrained Ultralytics model.
+        """Extract backbone and head from a pretrained Ultralytics model.
 
         Args:
             model_name: path to (or name of) a YOLOv8-seg checkpoint.
-            ch: channel sizes at P3, P4, P5. Required — it depends on the
-                YOLOv8 variant, and getting it wrong builds a neck whose
-                channels silently disagree with the backbone.
-            nc: number of classes. None keeps the checkpoint's head (80 COCO
-                classes); otherwise the class branch is resized, see
-                `resize_head_classes`.
+            ch: channel sizes at P3, P4, P5. Required — it depends on the YOLOv8 variant, and getting it wrong builds a
+                neck whose channels silently disagree with the backbone.
+            nc: number of classes. None keeps the checkpoint's head (80 COCO classes); otherwise the class branch is
+                resized, see `resize_head_classes`.
             **arch: forwarded to __init__ (cem_depthwise, afpn_stage1).
 
-        Usage:
+        Examples:
             valnet = VALNetModel.from_ultralytics("yolov8s-seg.pt", ch=(128, 256, 512))
         """
         from ultralytics import YOLO
@@ -161,7 +154,7 @@ class VALNetModel(nn.Module):
 
         # For reference, typical YOLOv8-seg structure:
         #   [0-9]:   backbone (Conv, C2f, SPPF)
-        #   [10-22]: neck (Upsample, Concat, C2f, Conv)  
+        #   [10-22]: neck (Upsample, Concat, C2f, Conv)
         #   [23]:    Segment head
         #
         # You'll need to split at the right index for your version.
@@ -179,17 +172,13 @@ class VALNetModel(nn.Module):
 
 
 def resize_head_classes(head, nc):
-    """
-    Resize a pretrained Detect/Segment head to `nc` classes, in place.
+    """Resize a pretrained Detect/Segment head to `nc` classes, in place.
 
-    Mirrors what Ultralytics does when it trains a COCO checkpoint on a dataset
-    with a different class count: every tensor whose shape still matches is
-    kept, which for YOLOv8s is everything except the final 1x1 conv of each
-    class branch (cv3[i][-1]). The hidden width of cv3 is
-    max(ch[0], min(nc, 100)) = 128 for both nc=80 and nc=1, so only that last
-    conv changes. It is re-initialized with PyTorch defaults and the same
-    prior bias as Detect.bias_init. This makes the head identical in shape
-    and initialization to the stock YOLOv8-seg baseline's.
+    Mirrors what Ultralytics does when it trains a COCO checkpoint on a dataset with a different class count: every
+    tensor whose shape still matches is kept, which for YOLOv8s is everything except the final 1x1 conv of each class
+    branch (cv3[i][-1]). The hidden width of cv3 is max(ch[0], min(nc, 100)) = 128 for both nc=80 and nc=1, so only that
+    last conv changes. It is re-initialized with PyTorch defaults and the same prior bias as Detect.bias_init. This
+    makes the head identical in shape and initialization to the stock YOLOv8-seg baseline's.
     """
     for i, branch in enumerate(head.cv3):
         old = branch[-1]
