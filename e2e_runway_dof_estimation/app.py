@@ -3,36 +3,51 @@
     python -m e2e_runway_dof_estimation.app            # http://127.0.0.1:7860
     python -m e2e_runway_dof_estimation.app --share    # + a public gradio.live link (~1 week)
 
-A preloaded run (assets.SAMPLES) is a saved result plus its replay video: picking one
-downloads it and computes nothing, so it needs no GPU. "Run a flight folder" runs
-segmentation and estimation, with the same numbers as the command line.
+A preloaded run (assets.SAMPLES) is a saved summary plus its replay video: picking one
+downloads two small files and computes nothing, so it needs no GPU. "Run a flight folder"
+runs segmentation and estimation, then renders the replay, with the same numbers as the
+command line.
 """
 
 import argparse
+import json
 import tempfile
 from pathlib import Path
 
-import cv2
 import gradio as gr
 
 from e2e_runway_dof_estimation import assets, pipeline
 
+EXPLAINER = """
+**The problem.** On final approach the aircraft needs two numbers about the runway ahead: its
+**yaw**, the angle between the nose and the runway centreline, and its **cross-track**, the
+sideways distance from the centreline (+ right). This demo estimates both from the forward
+camera alone. DeepLabV3+ segments the runway in every frame, Samuel Moyal's estimator fits the
+runway's outline to that mask, and a filter that allows for a crosswind tracks the result down
+the approach. Distance to the threshold, height, pitch and roll are taken as known, as an INS
+would give them.
+
+**The table**, for the whole approach and by distance to the threshold:
+- **Yaw MAE**: average yaw error, in degrees. *Lower is better.*
+- **Cross-track MAE**: average cross-track error, in metres. *Lower is better.* For scale,
+  these runways are 30–60 m wide.
+- **Mask IoU**: overlap between the predicted and the true runway mask, from 0 (none) to 1
+  (perfect). *Higher is better.*
+- **Frames**: camera frames scored, 150–1500 m before the threshold, within half the visibility.
+
+In the video, teal is the predicted runway mask, white the true runway, and amber the runway
+drawn from the estimated yaw and cross-track. The plots on the right compare estimate (amber)
+with truth (white).
+"""
+
+# Keep the results table on one line per row so it fits beside the video.
+CSS = """
+.summary table { font-size: 0.92em; }
+.summary th, .summary td { white-space: nowrap; padding: 6px 9px !important; }
+"""
+
 _models = {}
-_results = {}            # key -> (Result, Renderer)
-
-
-def _estimator():
-    if "estimator" not in _models:
-        from e2e_runway_dof_estimation.estimate import Estimator
-        _models["estimator"] = Estimator()
-    return _models["estimator"]
-
-
-def _segmenter():
-    if "segmenter" not in _models:
-        from e2e_runway_dof_estimation.segment import Segmenter
-        _models["segmenter"] = Segmenter()
-    return _models["segmenter"]
+_videos = {}             # folder -> (summary, rendered replay)
 
 
 def _summary_md(s):
@@ -40,73 +55,47 @@ def _summary_md(s):
     rows += [f"| {k} | {v['frames']} | {v['yaw_mae_deg']:.3f}° | {v['xtrack_mae_m']:.2f} m | {v['mask_iou']:.3f} |"
              for k, v in s["by_range"].items()]
     return (f"**{s['flight']}** · {s['airport']} · {s['weather']}\n\n"
-            "| Range | Frames | Yaw MAE | Cross-track MAE | Mask IoU |\n|---|---|---|---|---|\n" + "\n".join(rows))
-
-
-def _show(key, video=None):
-    """Outputs for a loaded result: state key, summary, slider, last frame, video."""
-    result, _ = _results[key]
-    n = len(result.records)
-    slider = gr.Slider(minimum=0, maximum=n - 1, value=n - 1, step=1,
-                       label=f"Frame (0 = {result.records[0]['range_m']:,.0f} m out)")
-    return key, _summary_md(result.summary()), slider, show_frame(key, n - 1), video
+            "| Range | Frames | Yaw MAE ↓ | Cross-track MAE ↓ | Mask IoU ↑ |\n|---|---|---|---|---|\n"
+            + "\n".join(rows))
 
 
 def _label(name):
     return f"{name} · {assets.SAMPLES[name]}"
 
 
-def load_run(label, progress=gr.Progress()):
-    from e2e_runway_dof_estimation.viz import Renderer
+def load_run(label):
+    """A preloaded run: its saved summary and replay video, nothing computed."""
     name = label.split(" · ")[0]
-    key = f"run:{name}"
-    if key not in _results:
-        progress(0, desc="downloading")
-        result = pipeline.load_preloaded(name)
-        _results[key] = (result, Renderer(result, _estimator()))
-    return _show(key, str(assets.preloaded_video(name)))
+    summary = json.loads((assets.preloaded_run(name) / "records.json").read_text())["meta"]["summary"]
+    return _summary_md(summary), str(assets.preloaded_video(name))
 
 
 def run_flight(folder, progress=gr.Progress()):
-    from e2e_runway_dof_estimation.viz import Renderer
-    if not folder.strip():
-        raise gr.Error("Enter a flight folder, e.g. datasets/xp12_dataset_weather/000414.")
-    key = str(Path(folder.strip()).resolve())
-    if key not in _results:
-        progress(0, desc="segmenting")
-        result = pipeline.run(folder.strip(), segmenter=_segmenter(), estimator=_estimator(),
-                              progress=lambda d, n: progress(d / n, desc=f"segmenting {d}/{n}"))
-        _results[key] = (result, Renderer(result, _estimator()))
-    return _show(key)
-
-
-def show_frame(key, pos):
-    if not key:
-        return None
-    result, rend = _results[key]
-    return cv2.cvtColor(rend.frame(result.records[int(pos)]["frame"]), cv2.COLOR_BGR2RGB)
-
-
-def make_video(key):
+    from e2e_runway_dof_estimation.estimate import Estimator
+    from e2e_runway_dof_estimation.segment import Segmenter
     from e2e_runway_dof_estimation.viz import write_video
-    if not key:
-        raise gr.Error("Load a run first.")
-    if key.startswith("run:"):
-        return str(assets.preloaded_video(key[4:]))
-    result, _ = _results[key]
-    path = Path(tempfile.gettempdir()) / f"replay_{result.flight.name.replace('/', '_')}.mp4"
-    write_video(result, _estimator(), path)
-    return str(path)
+    folder = folder.strip()
+    if not folder:
+        raise gr.Error("Enter a flight folder, e.g. datasets/xp12_dataset_weather/000414.")
+    key = str(Path(folder).resolve())
+    if key not in _videos:
+        if not _models:
+            _models.update(segmenter=Segmenter(), estimator=Estimator())
+        progress(0, desc="segmenting")
+        result = pipeline.run(folder, segmenter=_models["segmenter"], estimator=_models["estimator"],
+                              progress=lambda d, n: progress(d / n, desc=f"segmenting {d}/{n}"))
+        progress(1, desc="rendering the replay")
+        path = Path(tempfile.gettempdir()) / f"replay_{result.flight.name.replace('/', '_')}.mp4"
+        write_video(result, _models["estimator"], path)
+        _videos[key] = (_summary_md(result.summary()), str(path))
+    return _videos[key]
 
 
 def build(folder_runs=True):
     labels = [_label(n) for n in assets.SAMPLES]
     with gr.Blocks(title="Runway DOF estimation") as ui:
-        gr.Markdown("## Runway yaw and cross-track from a camera\n"
-                    "DeepLabV3+ segments the runway in each frame; Samuel Moyal's mask-fit estimator, "
-                    "tracked by a crab-angle EKF, turns the masks into yaw and cross-track. "
-                    "Frames 150–1500 m from the threshold, within half the visibility.")
-        key = gr.State("")
+        gr.Markdown("## Runway yaw and cross-track from a camera")
+        gr.Markdown(EXPLAINER)
         with gr.Row():
             run = gr.Dropdown(labels, value=labels[0], label="Preloaded run",
                               info="Saved results: shown instantly, no GPU needed")
@@ -114,19 +103,15 @@ def build(folder_runs=True):
                 folder = gr.Textbox(label="…or run a flight folder (GPU)", lines=1, max_lines=1,
                                     placeholder="datasets/xp12_dataset_weather/000414")
                 go = gr.Button("Run", variant="primary")
-        summary = gr.Markdown()
-        frame = gr.Image(label="Replay", type="numpy", interactive=False)
-        slider = gr.Slider(minimum=0, maximum=1, value=0, step=1, label="Frame")
-        with gr.Row():
-            vbtn = gr.Button("Replay video")
-            video = gr.Video(label="Replay video")
-        outs = [key, summary, slider, frame, video]
-        run.change(load_run, run, outs)
-        ui.load(load_run, run, outs)
+        with gr.Row(equal_height=False):
+            with gr.Column(scale=2, min_width=440):
+                summary = gr.Markdown(elem_classes="summary")
+            with gr.Column(scale=3, min_width=480):
+                video = gr.Video(label="Replay", autoplay=True, interactive=False)
+        run.change(load_run, run, [summary, video])
+        ui.load(load_run, run, [summary, video])
         if folder_runs:
-            go.click(run_flight, folder, outs)
-        slider.change(show_frame, [key, slider], frame)
-        vbtn.click(make_video, key, video)
+            go.click(run_flight, folder, [summary, video])
     return ui
 
 
@@ -148,7 +133,7 @@ def main():
     from huggingface_hub.constants import HF_HUB_CACHE
     # Preloaded replay videos are served straight from the Hugging Face cache.
     build(folder_runs).launch(server_name=args.host, server_port=args.port, share=args.share, auth=auth,
-                              allowed_paths=[HF_HUB_CACHE])
+                              allowed_paths=[HF_HUB_CACHE], css=CSS)
 
 
 if __name__ == "__main__":

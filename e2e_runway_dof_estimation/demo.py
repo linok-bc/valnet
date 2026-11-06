@@ -3,8 +3,8 @@
     python -m e2e_runway_dof_estimation.demo --flight weather_000185
     python -m e2e_runway_dof_estimation.demo --flight /path/to/xp12_dataset_weather/000414 --out runs/000414
 
---flight is a sample name (assets.SAMPLES, e.g. weather_000185: 7.3 m/s crosswind; weather_000410:
-fog), downloaded on first use, or a flight folder from the XP12 dataset.
+--flight is a sample name (assets.SAMPLES, e.g. weather_000185: 7.3 m/s crosswind; weather_000270:
+haze), downloaded on first use, or a flight folder from the XP12 dataset.
 """
 
 import argparse

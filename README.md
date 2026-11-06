@@ -63,39 +63,31 @@ machine; `--allow-folder-runs` brings it back.
 python -m e2e_runway_dof_estimation.app --share --auth demo:<password>
 ```
 
-The app opens on a **preloaded run**: a saved result with its replay video. Switching between
-the eight preloaded runs computes nothing, so it works without a GPU; the first view of each
-downloads its frames (40–150 MB). Scrub through the frames with the slider. To process a new
-flight folder, enter its path and press Run (needs a GPU).
+The app explains the problem and the metrics, then shows a **preloaded run**: its results
+table next to its replay video. A preloaded run is a saved result, so switching between the
+four computes nothing and needs no GPU. To process a new flight folder, enter its path and
+press Run (needs a GPU); the app runs the pipeline and renders the replay.
 
-The preloaded runs are a showcase: for each condition, the test flight with the lowest
-cross-track error. Over all 88 test flights the average is 0.047° yaw and 0.53 m cross-track
-(see Results).
+The preloaded runs are a showcase, picked from the 88 test flights for low cross-track error.
+Over all 88 the average is 0.047° yaw and 0.53 m cross-track (see Results).
 
 | Preloaded run | Flight | Frames | Yaw MAE | Cross-track MAE |
 |---|---|---|---|---|
 | `weather_000185` | ESIB 19, clear, 7.3 m/s crosswind | 237 | 0.029° | 0.19 m |
-| `weather_000292` | UWKJ 16, light rain | 230 | 0.040° | 0.14 m |
 | `weather_000331` | UMBB 29, heavy rain, 5.9 m/s crosswind | 233 | 0.023° | 0.30 m |
-| `weather_000414` | ESOK 21, heavy rain | 195 | 0.014° | 0.19 m |
 | `weather_000270` | EETU 26, haze | 232 | 0.012° | 0.20 m |
-| `weather_000410` | ESTA 14, fog, 1.5 km visibility | 108 | 0.024° | 0.23 m |
-| `weather_000494` | EDLN 13, mist | 255 | 0.024° | 0.47 m |
 | `easy_000126` | USNN 21, clear | 245 | 0.011° | 0.17 m |
-
-Fog and heavy-rain approaches start 600–1350 m out, where the runway comes into view. Mist is
-the hardest condition: even its best flight is off by 0.7 m beyond 1 km.
 
 From Python:
 
 ```python
 from e2e_runway_dof_estimation import pipeline
-result = pipeline.run("weather_000410")    # a sample name, or a flight folder
+result = pipeline.run("weather_000270")    # a sample name, or a flight folder
 print(result.summary())
 saved = pipeline.load_preloaded("weather_000185")   # a preloaded run, no computation
 ```
 
-`--flight` takes one of the five sample names above, downloaded on first use, or any flight
+`--flight` takes one of the four sample names above, downloaded on first use, or any flight
 folder from the dataset.
 
 Check an install with `python tests/test_smoke.py`. It loads every preloaded run and checks
@@ -107,7 +99,7 @@ its saved summary, then runs two samples through the full pipeline against refer
 - **Dataset:** [`linok-bc/xp12_flights`](https://huggingface.co/datasets/linok-bc/xp12_flights),
   145 easy and 468 weather approaches in seven conditions (68 GB), with airport-grouped splits.
 - **Assets:** the private model repo `linok-bc/e2e-runway-dof-estimation` holds the DeepLabV3+
-  weights, the runway database (`runways.dat`), five sample flights and their preloaded runs
+  weights, the runway database (`runways.dat`), four sample flights and their preloaded runs
   (rebuild with `python -m tools.precompute_runs`). They are cached
   under `~/.cache/huggingface` and `~/.cache/e2e_runway_dof_estimation`.
 

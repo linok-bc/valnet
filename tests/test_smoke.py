@@ -14,7 +14,7 @@ from e2e_runway_dof_estimation import assets, pipeline
 
 REFERENCE = {   # flight: (frames, yaw MAE deg, cross-track MAE m, mask IoU)
     "weather_000185": (237, 0.0294, 0.188, 0.946),     # 7.3 m/s crosswind, ESIB 19
-    "weather_000410": (108, 0.024, 0.231, 0.957),     # fog, ESTA 14
+    "weather_000270": (232, 0.0119, 0.202, 0.917),     # haze, EETU 26
 }
 
 

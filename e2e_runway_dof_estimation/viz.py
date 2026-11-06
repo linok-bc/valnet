@@ -28,8 +28,9 @@ def text(img, s, xy, scale=0.6, color=INK, thick=1):
 class Plot:
     """A series against range (km), range decreasing to the right."""
 
-    def __init__(self, x0, y0, w, h, title, lo, hi, rmax):
+    def __init__(self, x0, y0, w, h, title, lo, hi, rmax, ticks=None):
         self.x0, self.y0, self.w, self.h, self.title, self.lo, self.hi, self.rmax = x0, y0, w, h, title, lo, hi, rmax
+        self.ticks = np.linspace(lo, hi, 5) if ticks is None else ticks
 
     def X(self, r):
         return int(self.x0 + (self.rmax - min(r / 1000, self.rmax)) / self.rmax * self.w)   # r in m, rmax in km
@@ -40,9 +41,11 @@ class Plot:
     def draw(self, img, series):
         text(img, self.title, (self.x0, self.y0 - 12))
         cv2.rectangle(img, (self.x0, self.y0), (self.x0 + self.w, self.y0 + self.h), DIM, 1)
-        for v in np.linspace(self.lo, self.hi, 5):
+        whole = all(float(v).is_integer() for v in self.ticks)
+        for v in self.ticks:
             cv2.line(img, (self.x0, self.Y(v)), (self.x0 + self.w, self.Y(v)), GRID, 1)
-            text(img, f"{v:+.2f}" if self.hi - self.lo < 4 else f"{v:+.1f}", (self.x0 - 58, self.Y(v) + 5), 0.42, GREY)
+            label = f"{v:+.0f}" if whole else f"{v:+.2f}" if self.hi - self.lo < 4 else f"{v:+.1f}"
+            text(img, label, (self.x0 - 58, self.Y(v) + 5), 0.42, GREY)
         for km in np.arange(0, self.rmax + 1e-6, 0.5):
             text(img, f"{km:g}", (self.X(km * 1000) - 8, self.y0 + self.h + 18), 0.42, GREY)
         text(img, "range to threshold (km)", (self.x0 + self.w - 190, self.y0 + self.h + 38), 0.42, GREY)
@@ -60,7 +63,14 @@ class Renderer:
         xt = [v for r in recs for v in (r["xt_gt"], r["xt_est"]) if np.isfinite(v)]
         yw = [v for r in recs for v in (r["yaw_gt"], r["yaw_est"]) if np.isfinite(v)]
         rmax = max(0.5, np.ceil(max(r["range_m"] for r in recs) / 500) * 0.5)
-        self.p_xt = Plot(CAM_W + 80, 60, 540, 380, "cross-track, + right (m)", *pad(xt, 0.5), rmax)
+        # Cross-track grid at whole metres, at least 1 m apart (2 m past an 8 m span), so a
+        # few tens of centimetres of error does not fill the plot.
+        lo, hi = np.floor(min(xt) - 0.25), np.ceil(max(xt) + 0.25)
+        if hi - lo < 2:
+            lo, hi = lo - 1, hi + 1
+        step = 1.0 if hi - lo <= 8 else 2.0
+        self.p_xt = Plot(CAM_W + 80, 60, 540, 380, "cross-track, + right (m)", lo, hi, rmax,
+                         ticks=np.arange(lo, hi + 1e-9, step))
         self.p_yaw = Plot(CAM_W + 80, 540, 540, 380, "yaw relative to runway (deg)", *pad(yw, 0.1), rmax)
         self.pos = {r["frame"]: k for k, r in enumerate(recs)}
 
