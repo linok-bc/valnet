@@ -21,13 +21,17 @@ import pandas as pd
 
 from experiments.bev.camera import CameraModel
 from experiments.bev.episodes import load_runways
-from experiments.edge_lines.geometry import (crosstrack, edge_points, fit_line,
-                                             line_from_fit)
+from experiments.edge_lines.geometry import (
+    crosstrack,
+    edge_points,
+    fit_line,
+    line_from_fit,
+)
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
-STOCK = HERE / "cache/tilt_eval.json"      # edge_lines.eval --truth logged, fixed logs
-CALIB = HERE / "cache/calibration.json"    # Restart calibrate_xp12.py on the fixed logs
+STOCK = HERE / "cache/tilt_eval.json"  # edge_lines.eval --truth logged, fixed logs
+CALIB = HERE / "cache/calibration.json"  # Restart calibrate_xp12.py on the fixed logs
 YOLO_KEY = "YOLO MASK (baseline/runs/stock/weights/best.pt)"
 HEADING_FROM_M = 1500.0
 XTRACK_FROM_M = 1000.0
@@ -90,7 +94,7 @@ def load(ep):
     ep_dir = ROOT / "datasets/xp12_dataset" / ep
     xt, lines = [], {}
     for f in df.frame:
-        yaw, pitch, roll = np.loadtxt(ep_dir / "pose" / f"{f:06d}.txt")[:3]
+        _yaw, pitch, roll = np.loadtxt(ep_dir / "pose" / f"{f:06d}.txt")[:3]
         height = np.loadtxt(ep_dir / "position" / f"{f:06d}.txt")[1]
         est, lL, lR = _edge_lines(binary[f], cam, roll, pitch, height, width)
         xt.append(est)
@@ -108,8 +112,7 @@ def full_flight(ep):
     pos = np.array([np.loadtxt(p) for p in sorted((d / "position").glob("*.txt"))])
     yaw = np.array([np.loadtxt(p)[0] for p in sorted((d / "pose").glob("*.txt"))])
     rng = -pos[:, 0]
-    return pd.DataFrame({"range_m": rng, "right_m": pos[:, 2],
-                         "height_m": pos[:, 1], "yaw_deg": yaw})
+    return pd.DataFrame({"range_m": rng, "right_m": pos[:, 2], "height_m": pos[:, 1], "yaw_deg": yaw})
 
 
 def verify(df):
