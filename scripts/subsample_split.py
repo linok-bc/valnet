@@ -17,8 +17,7 @@ from pathlib import Path
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dir", default="datasets/xp12_splits/combined")
     ap.add_argument("--stride", type=int, default=5)
     ap.add_argument("--splits", nargs="+", default=["train", "val"])
@@ -30,7 +29,7 @@ def main():
         for line in src.read_text().splitlines():
             if line.strip():
                 flights[str(Path(line.strip()).parents[1])].append(line.strip())
-        kept = [img for f in flights.values() for img in sorted(f)[::args.stride]]
+        kept = [img for f in flights.values() for img in sorted(f)[:: args.stride]]
         dst = src.with_name(f"{s}_every{args.stride}.txt")
         dst.write_text("\n".join(kept) + "\n")
         print(f"{dst}: {len(kept)} of {sum(map(len, flights.values()))} frames, {len(flights)} flights")
