@@ -13,7 +13,7 @@ cell and not to the setup.
 
 Arms live in the config rather than in code so that adding one is a config edit
 plus a rebuild. They are read through here by the builder, the trainer, the
-evaluator and the visualiser, so all four always agree on what exists.
+evaluator and the visualizer, so all four always agree on what exists.
 """
 
 from dataclasses import dataclass
@@ -26,9 +26,9 @@ from experiments.bev.grids import GridPolicy
 @dataclass(frozen=True)
 class Arm:
     name: str
-    view: str          # "perspective" | "bev"
-    target: str        # "segment" | "obb"
-    grid: str = None   # key into the config's `grids`; None for perspective arms
+    view: str  # "perspective" | "bev"
+    target: str  # "segment" | "obb"
+    grid: str = None  # key into the config's `grids`; None for perspective arms
 
     @property
     def is_bev(self) -> bool:
@@ -56,8 +56,7 @@ def load_arms(cfg) -> dict:
 def load_grids(cfg) -> dict:
     """Only the grids some arm actually uses -- an unused grid costs a warp per frame."""
     used = {spec.get("grid") for spec in cfg["arms"].values() if spec.get("grid")}
-    return {name: GridPolicy(**params)
-            for name, params in cfg["grids"].items() if name in used}
+    return {name: GridPolicy(**params) for name, params in cfg["grids"].items() if name in used}
 
 
 def load_config(path):

@@ -65,8 +65,7 @@ def plot(panel, pts, vis_half, top, h):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--flight", required=True, help="<dataset>/<episode>")
     ap.add_argument("--pred", default="results/xp12_combined/predictions_yolo")
     ap.add_argument("--out", default="results/xp12_combined/demos")
@@ -88,17 +87,39 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     dst = out / f"{args.tag + '_' if args.tag else ''}{ds.replace('xp12_dataset_', '')}_{ep}.mp4"
     W, H = 1280, 720
-    ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "bgr24",
-                           "-s", f"{W + PANEL_W}x{H}", "-r", str(args.fps), "-i", "-",
-                           "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "22", str(dst)],
-                          stdin=subprocess.PIPE)
+    ff = subprocess.Popen(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "bgr24",
+            "-s",
+            f"{W + PANEL_W}x{H}",
+            "-r",
+            str(args.fps),
+            "-i",
+            "-",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-crf",
+            "22",
+            str(dst),
+        ],
+        stdin=subprocess.PIPE,
+    )
     pts = []
     for fr in pred["frames"]:
         s = fr["stem"]
         img = cv2.imread(str(root / "images" / f"{s}.jpg"))
         lab = np.array(open(root / "labels" / f"{s}.txt").read().split()[1:], float).reshape(-1, 2) * [W, H]
         g = poly_px(lab)
-        along, height, right = map(float, open(root / "position" / f"{s}.txt").read().split())
+        along, height, _right = map(float, open(root / "position" / f"{s}.txt").read().split())
         rng = math.hypot(along, height) if along < 0 else 0.0
 
         det = fr["dets"][0] if fr["dets"] else None
@@ -120,17 +141,21 @@ def main():
 
         panel = np.full((H, PANEL_W, 3), 24, np.uint8)
         y = 40
-        for s_, sc, c in [(args.model_name, 0.7, WHITE),
-                          (f"{ds.replace('xp12_dataset_', '')}/{ep}   {airport_rwy}", 0.6, GREY),
-                          (f"weather: {regime}   visibility {vis / 1000:.2f} km", 0.6, GREY)]:
+        for s_, sc, c in [
+            (args.model_name, 0.7, WHITE),
+            (f"{ds.replace('xp12_dataset_', '')}/{ep}   {airport_rwy}", 0.6, GREY),
+            (f"weather: {regime}   visibility {vis / 1000:.2f} km", 0.6, GREY),
+        ]:
             text(panel, s_, (20, y), sc, c, 2 if sc > 0.65 else 1)
             y += 32
         y += 10
-        rows = [("range to threshold", f"{rng:,.0f} m" if along < 0 else "past threshold"),
-                ("height", f"{height:,.0f} m"),
-                ("confidence", f"{det['conf']:.2f}" if det else "no detection"),
-                ("IoU with label", f"{v:.3f}"),
-                ("scored", "yes" if fr["scored"] else "no")]
+        rows = [
+            ("range to threshold", f"{rng:,.0f} m" if along < 0 else "past threshold"),
+            ("height", f"{height:,.0f} m"),
+            ("confidence", f"{det['conf']:.2f}" if det else "no detection"),
+            ("IoU with label", f"{v:.3f}"),
+            ("scored", "yes" if fr["scored"] else "no"),
+        ]
         for k, val in rows:
             text(panel, k, (20, y), 0.6, GREY)
             text(panel, val, (250, y), 0.6, WHITE)

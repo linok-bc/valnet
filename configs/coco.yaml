@@ -1,7 +1,7 @@
 # COCO 2017 for VALNet pretraining (CEM+AFPN+OAM). Class list from Ultralytics' coco.yaml.
 path: /home/linok/Downloads/valnet/datasets/coco
-train: train2017.txt  # 118287 images
-val: val2017.txt      # 5000 images
+train: train2017.txt # 118287 images
+val: val2017.txt # 5000 images
 
 names:
   0: person
@@ -84,4 +84,3 @@ names:
   77: teddy bear
   78: hair drier
   79: toothbrush
-

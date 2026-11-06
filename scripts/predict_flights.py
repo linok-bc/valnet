@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Save a segmentation model's runway predictions for every frame of a split's flights.
+r"""Save a segmentation model's runway predictions for every frame of a split's flights.
 
 For demos and per-frame scoring (deeplab/eval.py --yolo-json): one JSON per
 flight with each frame's detections as polygons in source-image pixels, so
@@ -50,12 +50,13 @@ import torch
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-CAP_FRACTION = 0.74   # box width / mask width at or above which the box is at the 960-px cap
+CAP_FRACTION = 0.74  # box width / mask width at or above which the box is at the 960-px cap
 
 
 def widen_capped_crop():
     """Make Ultralytics crop a capped box's mask to the full image width instead of the box."""
-    import ultralytics.utils.ops as ops
+    from ultralytics.utils import ops
+
     crop = ops.crop_mask
 
     def widened(masks, boxes):
@@ -79,8 +80,11 @@ def mask_polys(mask):
 class YoloRunner:
     def __init__(self, weights, imgsz, conf, max_det):
         from ultralytics import YOLO
-        self.model, self.kw = YOLO(weights), dict(imgsz=imgsz, half=True, conf=conf, max_det=max_det,
-                                                  retina_masks=True, verbose=False)
+
+        self.model, self.kw = (
+            YOLO(weights),
+            {"imgsz": imgsz, "half": True, "conf": conf, "max_det": max_det, "retina_masks": True, "verbose": False},
+        )
 
     def __call__(self, paths):
         out = []
@@ -97,23 +101,28 @@ class ValnetRunner:
     def __init__(self, weights, imgsz, conf, max_det):
         from omegaconf import OmegaConf
         from ultralytics.data.augment import LetterBox
+
         from valnet.valnet import VALNetModel
+
         cfg = OmegaConf.load(REPO / "configs/main.yaml")
-        self.model = VALNetModel.from_ultralytics(REPO / cfg.yolov8_checkpoint, ch=(128, 256, 512),
-                                                  nc=cfg.data.num_classes, **cfg.model)
+        self.model = VALNetModel.from_ultralytics(
+            REPO / cfg.yolov8_checkpoint, ch=(128, 256, 512), nc=cfg.data.num_classes, **cfg.model
+        )
         # scripts/train.py saves with this alias (for v8SegmentationLoss), so the
         # checkpoint has every weight under model.* too; scripts/test.py does the same.
-        self.model.model = torch.nn.ModuleList([self.model.backbone_p3, self.model.backbone_p4,
-                                                self.model.backbone_p5, self.model.neck, self.model.head])
+        self.model.model = torch.nn.ModuleList(
+            [self.model.backbone_p3, self.model.backbone_p4, self.model.backbone_p5, self.model.neck, self.model.head]
+        )
         self.model.load_state_dict(torch.load(weights, map_location="cuda"))
         self.model = self.model.cuda().eval()
-        self.letterbox = LetterBox(new_shape=(imgsz, imgsz), scaleup=False)   # as Ultralytics' val dataset
+        self.letterbox = LetterBox(new_shape=(imgsz, imgsz), scaleup=False)  # as Ultralytics' val dataset
         self.imgsz, self.conf, self.max_det = imgsz, conf, max_det
 
     @torch.no_grad()
     def __call__(self, paths):
         from ultralytics.utils.nms import non_max_suppression
         from ultralytics.utils.ops import process_mask
+
         srcs = [cv2.imread(p) for p in paths]
         lb = [self.letterbox(image=im) for im in srcs]
         x = torch.from_numpy(np.stack([im[..., ::-1].transpose(2, 0, 1) for im in lb]).copy()).cuda().float() / 255
@@ -121,8 +130,9 @@ class ValnetRunner:
             (decoded, proto), _ = self.model(x)
         decoded, proto = decoded.float(), proto.float()
         nc = decoded.shape[1] - 4 - proto.shape[1]
-        nms = non_max_suppression(decoded, conf_thres=self.conf, iou_thres=0.7, nc=nc, classes=[0],
-                                  multi_label=False, max_det=self.max_det)
+        nms = non_max_suppression(
+            decoded, conf_thres=self.conf, iou_thres=0.7, nc=nc, classes=[0], multi_label=False, max_det=self.max_det
+        )
         out = []
         for i, (det, src) in enumerate(zip(nms, srcs)):
             h, w = src.shape[:2]
@@ -132,7 +142,7 @@ class ValnetRunner:
             dets = []
             if len(det):
                 masks = process_mask(proto[i], det[:, 6:], det[:, :4], (self.imgsz, self.imgsz), upsample=True)
-                masks = (masks[:, top:top + nh, left:left + nw] > 0.5).cpu().numpy()
+                masks = (masks[:, top : top + nh, left : left + nw] > 0.5).cpu().numpy()
                 for c, m in sorted(zip(det[:, 4].tolist(), masks), key=lambda t: -t[0]):
                     if (nh, nw) != (h, w):
                         m = cv2.resize(m.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST)
@@ -146,12 +156,14 @@ class ValnetRunner:
 class DeeplabRunner:
     def __init__(self, weights, *_):
         from deeplab.model import DeepLabV3Plus
+
         self.model = DeepLabV3Plus(pretrained=False).cuda().to(memory_format=torch.channels_last).eval()
         self.model.load_state_dict(torch.load(weights, map_location="cuda"))
 
     @torch.no_grad()
     def __call__(self, paths):
         from deeplab.data import MEAN, STD
+
         ims = [(cv2.cvtColor(cv2.imread(p), cv2.COLOR_BGR2RGB).astype(np.float32) / 255 - MEAN) / STD for p in paths]
         x = torch.from_numpy(np.stack([im.transpose(2, 0, 1) for im in ims])).cuda()
         with torch.autocast("cuda", dtype=torch.float16):
@@ -170,8 +182,7 @@ class DeeplabRunner:
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--weights", required=True)
     ap.add_argument("--arch", choices=["yolo", "valnet", "deeplab"], default="yolo")
     ap.add_argument("--dir", default="datasets/xp12_splits/combined")
@@ -182,8 +193,12 @@ def main():
     ap.add_argument("--conf", type=float, default=0.1)
     ap.add_argument("--max-det", type=int, default=5)
     ap.add_argument("--no-widen", action="store_true", help="plain box crop, i.e. keep the 960-px cut")
-    ap.add_argument("--gpu-fraction", type=float, default=None,
-                    help="cap this process's GPU memory, e.g. when sharing the GPU with training")
+    ap.add_argument(
+        "--gpu-fraction",
+        type=float,
+        default=None,
+        help="cap this process's GPU memory, e.g. when sharing the GPU with training",
+    )
     args = ap.parse_args()
 
     if args.gpu_fraction:
@@ -199,7 +214,8 @@ def main():
             flights[Path(l.strip()).parents[1]].append(l.strip())
 
     runner = {"yolo": YoloRunner, "valnet": ValnetRunner, "deeplab": DeeplabRunner}[args.arch](
-        args.weights, args.imgsz, args.conf, args.max_det)
+        args.weights, args.imgsz, args.conf, args.max_det
+    )
     out = Path(args.out)
     for i, (ep, imgs) in enumerate(sorted(flights.items())):
         dst = out / ep.parent.name / f"{ep.name}.json"
@@ -209,12 +225,21 @@ def main():
         imgs = sorted(imgs)
         # Chunk by hand: given a list, YOLO.predict() loads the whole list as one batch.
         for k in range(0, len(imgs), args.batch):
-            chunk = imgs[k:k + args.batch]
+            chunk = imgs[k : k + args.batch]
             for dets, img in zip(runner(chunk), chunk):
                 frames.append({"stem": Path(img).stem, "scored": img in scored, "dets": dets})
         dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.write_text(json.dumps({"weights": args.weights, "arch": args.arch, "imgsz": args.imgsz,
-                                   "widened": args.arch != "deeplab" and not args.no_widen, "frames": frames}))
+        dst.write_text(
+            json.dumps(
+                {
+                    "weights": args.weights,
+                    "arch": args.arch,
+                    "imgsz": args.imgsz,
+                    "widened": args.arch != "deeplab" and not args.no_widen,
+                    "frames": frames,
+                }
+            )
+        )
         print(f"[{i + 1}/{len(flights)}] {dst}  {len(frames)} frames", flush=True)
 
 

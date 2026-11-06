@@ -11,14 +11,14 @@ Reviewed 2026-09-14. Companion to [README.md](README.md); the numbers quoted for
 
 Measured, not assumed (118 episodes, 50 820 frames):
 
-| available | not available |
-|---|---|
-| 1280×720 RGB, X-Plane 12 | **timestamps** |
-| 4-corner runway quad, unclipped | **velocities, angular rates** |
-| yaw / pitch / roll per frame | real imagery (synthetic only) |
-| along / height / right per frame | weather (0 rain, all daytime, wind ≤3 m/s) |
+| available                                                   | not available                               |
+| ----------------------------------------------------------- | ------------------------------------------- |
+| 1280×720 RGB, X-Plane 12                                    | **timestamps**                              |
+| 4-corner runway quad, unclipped                             | **velocities, angular rates**               |
+| yaw / pitch / roll per frame                                | real imagery (synthetic only)               |
+| along / height / right per frame                            | weather (0 rain, all daytime, wind ≤3 m/s)  |
 | `runways.dat`: width, length, heading, endpoints, elevation | a clean frame — the X-Plane HUD is baked in |
-| fitted intrinsics (fx 1004, tilt +0.04°, 1.4 px residual) | camera tilted down (see README) |
+| fitted intrinsics (fx 1004, tilt +0.04°, 1.4 px residual)   | camera tilted down (see README)             |
 
 **The missing clock is the binding constraint.** Sim speed varied 1.3–5× between
 episodes, so frame index is not proportional to time. Every method whose value
@@ -33,7 +33,7 @@ From README.md, `bev_seg` test split, n=567:
 
 - **1.65 m MAE / 2.19 m RMSE** with heading from the INS (Ryu et al. + Kalman)
 - **6.21 m MAE** with heading fitted from the mask — the camera-only figure
-- the gap is *entirely* the heading lever: cross-track error ≈ `range · sin δψ`
+- the gap is _entirely_ the heading lever: cross-track error ≈ `range · sin δψ`
 
 So the question for every method below is not "does it estimate cross-track"
 but **"does it estimate heading better than 0.36°, or avoid needing it?"** At
@@ -60,7 +60,7 @@ MAE the width-scaled front-edge estimator gets in the 1000–1500 m bin. The
 robustness paper's ~70 m median 3D translation error beyond 1 km points the
 same way.
 
-**Feasibility: immediate, and it is roadmap step 4.** The labels *are* four
+**Feasibility: immediate, and it is roadmap step 4.** The labels _are_ four
 corners, `runways.dat` gives the 3D model, intrinsics are fitted. Drops into
 `ryu_eval.py` as another variant. Worth doing precisely because the literature
 predicts it loses — Ryu et al.'s own headline is beating PnP 3.14 → 1.78 m MAE,
@@ -75,7 +75,7 @@ Bourquardez & Chaumette ([IROS/ICRA
 airplane onto a runway from the two edge lines in bi-normalised Plücker
 coordinates, never forming a metric pose at all. Modern learned versions predict
 lines alongside the mask: **ERFE** (Chen et al., IET Image Processing 2024)
-emits a segmentation map *and* a line-probability map from a MobileNetV3
+emits a segmentation map _and_ a line-probability map from a MobileNetV3
 backbone, and [joint segmentation + line detection via multi-task
 learning](https://www.sciencedirect.com/science/article/abs/pii/S1047320325002032)
 (2025) does the same with task-specific decoders.
@@ -86,7 +86,7 @@ and ~1.5° over all VPs; horizon-based attitude estimation runs
 [RMS < 1.7°](https://journals.sagepub.com/doi/full/10.1177/1756829318804761).
 Both are **worse than the 0.36° your fitted box already achieves**, and 1.5° at
 1.4 km is 37 m of cross-track. A VP detector is not the fix for the heading
-lever; a *runway-specific, long-baseline edge fit with an uncertainty model*
+lever; a _runway-specific, long-baseline edge fit with an uncertainty model_
 might be.
 
 **Feasibility: high, and it needs no new labels.** The 4-corner quad gives both
@@ -106,11 +106,11 @@ perspective features with 3D anchors and no view transform. The named culprit is
 the **flat-ground assumption** that IPM requires — the same assumption your
 `ground_to_image` homography makes.
 
-This is worth citing in the writeup: your result is not an artefact of your
+This is worth citing in the writeup: your result is not an artifact of your
 setup, it is the same finding the driving community reached independently, for
 the same reason.
 
-**Feasibility: done.** The interesting remaining variant is BEV-*free* — 3D
+**Feasibility: done.** The interesting remaining variant is BEV-_free_ — 3D
 anchors in the perspective image, LATR-style — which would be a genuinely new
 arm rather than a re-run.
 
@@ -124,8 +124,8 @@ environments](https://openaccess.thecvf.com/content/CVPR2025W/USM3D/papers/Wang_
 and measures lateral distance from the track, with a two-stage near-field
 (sleeper-based) / far-field (geometric) calibration.
 
-That two-stage idea transfers directly: near the threshold the runway *width* is
-well resolved, far out the runway *length/edges* are the better-conditioned
+That two-stage idea transfers directly: near the threshold the runway _width_ is
+well resolved, far out the runway _length/edges_ are the better-conditioned
 reference. Your `scale=width` uses one reference at all ranges.
 
 **Feasibility: implemented; the two-stage extension is cheap.** Note the measured
@@ -135,7 +135,7 @@ result that the width scale costs essentially nothing for cross-track
 ## E. Differentiable PnP and learned correspondences
 
 [EPro-PnP](https://arxiv.org/html/2303.12787) (CVPR 2022, TPAMI 2024) makes the
-PnP layer differentiable by predicting a *distribution* over pose on SE(3),
+PnP layer differentiable by predicting a _distribution_ over pose on SE(3),
 learning 2D-3D correspondences and per-point weights end-to-end from a pose
 loss. BPnP is the simpler backpropagatable alternative, already validated
 against iterative PnP in the LARD robustness paper.
@@ -151,7 +151,7 @@ Keep it as roadmap step 6, after the geometric baselines are pinned.
 [Monocular visual estimation for autonomous aircraft landing guidance in unknown
 structured scenes](https://www.sciopen.com/article/10.1016/j.cja.2025.103479)
 (Chinese J. Aeronautics, 2025) trains one network for segmentation, depth and
-slope jointly, targeting runways whose geometry is *not* known in advance — the
+slope jointly, targeting runways whose geometry is _not_ known in advance — the
 case where `runways.dat` would not exist.
 
 **Feasibility: moderate, and partly synthesisable.** You have no depth ground
@@ -217,15 +217,15 @@ reports a bound it actually meets" is a stronger claim than another 0.2 m of MAE
 
 Ranked by (value × feasibility) on the data as it exists today:
 
-| | direction | why | cost |
-|---|---|---|---|
-| 1 | **Add a clock + body rates to the collector** | unblocks the entire filtering literature; heading is the error budget and time is how you beat it down | collector change + recollect |
-| 2 | **Long-baseline edge/line fit with σ** (roadmap 2) | targets the actual bottleneck; no new labels; beware that generic VP detectors are *worse* than what you have | days |
-| 3 | **4-corner PnP variant** (roadmap 4) | the comparison Ryu et al. claim to win; literature predicts 24–52 m cross-track PL at 1 km, so this should lose — which is the result | ~1 day |
-| 4 | **Conformal / protection levels** (roadmap 3) | cheapest credible contribution; certification framing is where this field is going | ~2 days |
-| 5 | **BEV-free 3D-anchor arm** (LATR-style) | the driving field's answer to the same negative result you found | weeks |
-| 6 | EPro-PnP (roadmap 6) | data-thin at 118 episodes; park it | weeks |
-| — | metric depth foundation models | evidence says they degrade with altitude, and you already know altitude | skip |
+|     | direction                                          | why                                                                                                                                   | cost                         |
+| --- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
+| 1   | **Add a clock + body rates to the collector**      | unblocks the entire filtering literature; heading is the error budget and time is how you beat it down                                | collector change + recollect |
+| 2   | **Long-baseline edge/line fit with σ** (roadmap 2) | targets the actual bottleneck; no new labels; beware that generic VP detectors are _worse_ than what you have                         | days                         |
+| 3   | **4-corner PnP variant** (roadmap 4)               | the comparison Ryu et al. claim to win; literature predicts 24–52 m cross-track PL at 1 km, so this should lose — which is the result | ~1 day                       |
+| 4   | **Conformal / protection levels** (roadmap 3)      | cheapest credible contribution; certification framing is where this field is going                                                    | ~2 days                      |
+| 5   | **BEV-free 3D-anchor arm** (LATR-style)            | the driving field's answer to the same negative result you found                                                                      | weeks                        |
+| 6   | EPro-PnP (roadmap 6)                               | data-thin at 118 episodes; park it                                                                                                    | weeks                        |
+| —   | metric depth foundation models                     | evidence says they degrade with altitude, and you already know altitude                                                               | skip                         |
 
 The two claims worth carrying into the writeup:
 
@@ -238,25 +238,25 @@ The two claims worth carrying into the writeup:
 
 ## Sources
 
-- Ryu et al., *An estimation method for vision-based autonomous landing system for fixed wing aircraft*, IJRR 44(6) 2025 — https://journals.sagepub.com/doi/abs/10.1177/02783649241287229
-- Ducoffe et al., *LARD — Landing Approach Runway Detection* — https://arxiv.org/pdf/2304.09938
-- *Robust Validation to Geometric Perturbations for Autonomous Pose Estimation* — https://arxiv.org/html/2608.21066
-- *Protection Levels for Vision-Based Pose Estimation* — https://arxiv.org/html/2608.10023
-- *Robust Vision-Based Runway Detection through Conformal Prediction* — https://arxiv.org/pdf/2505.16740
-- *Predictive Uncertainty for Runtime Assurance* — https://arxiv.org/pdf/2508.09732
-- *Monocular 3D Lane Detection for Autonomous Driving: survey* — https://arxiv.org/html/2404.06860v1
+- Ryu et al., _An estimation method for vision-based autonomous landing system for fixed wing aircraft_, IJRR 44(6) 2025 — https://journals.sagepub.com/doi/abs/10.1177/02783649241287229
+- Ducoffe et al., _LARD — Landing Approach Runway Detection_ — https://arxiv.org/pdf/2304.09938
+- _Robust Validation to Geometric Perturbations for Autonomous Pose Estimation_ — https://arxiv.org/html/2608.21066
+- _Protection Levels for Vision-Based Pose Estimation_ — https://arxiv.org/html/2608.10023
+- _Robust Vision-Based Runway Detection through Conformal Prediction_ — https://arxiv.org/pdf/2505.16740
+- _Predictive Uncertainty for Runtime Assurance_ — https://arxiv.org/pdf/2508.09732
+- _Monocular 3D Lane Detection for Autonomous Driving: survey_ — https://arxiv.org/html/2404.06860v1
 - LATR — https://arxiv.org/pdf/2308.04583 · PersFormer — https://arxiv.org/abs/2203.11089 · Anchor3DLane++ — https://arxiv.org/pdf/2412.16889
-- Wang et al., *Near-incident detection in railroad environments* (CVPR 2025 W) — https://openaccess.thecvf.com/content/CVPR2025W/USM3D/papers/Wang_Near-incident_detection_in_railroad_environments_lateral_distance_estimation_from_train-mounted_CVPRW_2025_paper.pdf
-- Bourquardez & Chaumette, *Visual servoing of an airplane for auto-landing* — https://www.irisa.fr/lagadic/pdf/2007_iros_bourquardez.pdf
+- Wang et al., _Near-incident detection in railroad environments_ (CVPR 2025 W) — https://openaccess.thecvf.com/content/CVPR2025W/USM3D/papers/Wang_Near-incident_detection_in_railroad_environments_lateral_distance_estimation_from_train-mounted_CVPRW_2025_paper.pdf
+- Bourquardez & Chaumette, _Visual servoing of an airplane for auto-landing_ — https://www.irisa.fr/lagadic/pdf/2007_iros_bourquardez.pdf
 - Chen et al., ERFE, IET Image Processing 2024 — https://ietresearch.onlinelibrary.wiley.com/doi/10.1049/ipr2.13087
-- *Joint airport runway segmentation and line detection* — https://www.sciencedirect.com/science/article/abs/pii/S1047320325002032
+- _Joint airport runway segmentation and line detection_ — https://www.sciencedirect.com/science/article/abs/pii/S1047320325002032
 - YOLO-RWY, Drones 8(10) 2024 — https://www.mdpi.com/2504-446X/8/10/571
 - NeurVPS — https://arxiv.org/pdf/1910.06316
-- Carrio et al., *Attitude estimation using horizon detection* — https://journals.sagepub.com/doi/full/10.1177/1756829318804761
+- Carrio et al., _Attitude estimation using horizon detection_ — https://journals.sagepub.com/doi/full/10.1177/1756829318804761
 - Chen et al., EPro-PnP — https://arxiv.org/html/2303.12787
-- *Monocular visual estimation … unknown structured scenes*, CJA 2025 — https://www.sciopen.com/article/10.1016/j.cja.2025.103479
+- _Monocular visual estimation … unknown structured scenes_, CJA 2025 — https://www.sciopen.com/article/10.1016/j.cja.2025.103479
 - Metric3D v2 — https://arxiv.org/abs/2404.15506 · AerialMetric — https://arxiv.org/pdf/2606.29716
-- *Real-time vision-inertial landing navigation with CFC-CKF* — https://www.researchgate.net/publication/383131627_Real-time_vision-inertial_landing_navigation_for_fixed-wing_aircraft_with_CFC-CKF
-- *Optical Navigation Sensor for Runway Relative Positioning* — https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8004248/
-- Ferreira et al., *Vision-Based Landing Guidance through Tracking and Orientation Estimation*, WACV 2025 — https://openaccess.thecvf.com/content/WACV2025/papers/Ferreira_Vision-Based_Landing_Guidance_through_Tracking_and_Orientation_Estimation_WACV_2025_paper.pdf
-- Cheng et al., *Vision-Based Runway Detection and Localization … GNSS-Denied*, J. Field Robotics 2026 — https://onlinelibrary.wiley.com/doi/10.1002/rob.70147
+- _Real-time vision-inertial landing navigation with CFC-CKF_ — https://www.researchgate.net/publication/383131627_Real-time_vision-inertial_landing_navigation_for_fixed-wing_aircraft_with_CFC-CKF
+- _Optical Navigation Sensor for Runway Relative Positioning_ — https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8004248/
+- Ferreira et al., _Vision-Based Landing Guidance through Tracking and Orientation Estimation_, WACV 2025 — https://openaccess.thecvf.com/content/WACV2025/papers/Ferreira_Vision-Based_Landing_Guidance_through_Tracking_and_Orientation_Estimation_WACV_2025_paper.pdf
+- Cheng et al., _Vision-Based Runway Detection and Localization … GNSS-Denied_, J. Field Robotics 2026 — https://onlinelibrary.wiley.com/doi/10.1002/rob.70147

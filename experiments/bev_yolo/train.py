@@ -30,19 +30,15 @@ def train_arm(arm, cfg, dataset_root, extra):
     project = str(Path(t.pop("project")).resolve())
 
     grid_note = f", {arm.grid} grid" if arm.is_bev else ""
-    print(f"\n=== {arm.name}: {arm.view} image, {arm.target} target{grid_note}, "
-          f"from {weights} ===")
+    print(f"\n=== {arm.name}: {arm.view} image, {arm.target} target{grid_note}, from {weights} ===")
     model = YOLO(weights)
-    return model.train(data=str(data), name=arm.name, project=project,
-                       exist_ok=True, **t, **extra)
+    return model.train(data=str(data), name=arm.name, project=project, exist_ok=True, **t, **extra)
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default="experiments/bev_yolo/config.yaml")
-    ap.add_argument("--arm", default="all",
-                    help="an arm name from the config, or 'all'")
+    ap.add_argument("--arm", default="all", help="an arm name from the config, or 'all'")
     ap.add_argument("--epochs", type=int, default=None, help="override config")
     ap.add_argument("--device", default=None)
     args = ap.parse_args()
@@ -56,7 +52,7 @@ def main():
     if args.device is not None:
         extra["device"] = args.device
 
-    for arm in ([arms[a] for a in arms] if args.arm == "all" else [arms[args.arm]]):
+    for arm in [arms[a] for a in arms] if args.arm == "all" else [arms[args.arm]]:
         train_arm(arm, cfg, cfg["dataset"]["out"], extra)
 
 

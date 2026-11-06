@@ -16,16 +16,20 @@ rates keeps its receptive field the same in pixels.
 """
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from torchvision.models._utils import IntermediateLayerGetter
+from torch import nn
 from torchvision.models import resnet50
-from torchvision.models.segmentation import DeepLabV3_ResNet50_Weights, deeplabv3_resnet50
+from torchvision.models._utils import IntermediateLayerGetter
+from torchvision.models.segmentation import (
+    DeepLabV3_ResNet50_Weights,
+    deeplabv3_resnet50,
+)
 
 
 def conv_bn_relu(cin, cout, k):
-    return nn.Sequential(nn.Conv2d(cin, cout, k, padding=k // 2, bias=False),
-                         nn.BatchNorm2d(cout), nn.ReLU(inplace=True))
+    return nn.Sequential(
+        nn.Conv2d(cin, cout, k, padding=k // 2, bias=False), nn.BatchNorm2d(cout), nn.ReLU(inplace=True)
+    )
 
 
 class DeepLabV3Plus(nn.Module):
@@ -41,13 +45,13 @@ class DeepLabV3Plus(nn.Module):
             assert not unexpected and set(missing) == {"fc.weight", "fc.bias"}, (missing, unexpected)
         # Same backbone weights, now also returning layer1 (stride 4, 256 ch).
         self.backbone = IntermediateLayerGetter(backbone, {"layer1": "low", "layer4": "out"})
-        self.aspp = base.classifier[0]                       # 2048 -> 256, pretrained
+        self.aspp = base.classifier[0]  # 2048 -> 256, pretrained
         if output_stride == 16:
             for branch in self.aspp.convs[1:4]:
                 conv = branch[0]
                 conv.dilation = tuple(d // 2 for d in conv.dilation)
                 conv.padding = conv.dilation
-        self.low_proj = conv_bn_relu(256, 48, 1)            # paper: 48 channels
+        self.low_proj = conv_bn_relu(256, 48, 1)  # paper: 48 channels
         self.decoder = nn.Sequential(conv_bn_relu(256 + 48, 256, 3), conv_bn_relu(256, 256, 3))
         self.head = nn.Conv2d(256, num_classes, 1)
 

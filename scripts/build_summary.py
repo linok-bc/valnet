@@ -23,12 +23,25 @@ MODELS = [  # key, name, iou file, css var, params (M), ms/frame, train h
     ("deeplab", "DeepLabV3+", "iou_deeplab", "--s3", 40.3, 48.9, 22.1),
 ]
 # range bins in approach order (far to near, then on the runway)
-RANGES = [("1500-3000", "1.5–3 km"), ("1000-1500", "1–1.5 km"), ("600-1000", "600 m–1 km"),
-          ("300-600", "300–600 m"), ("150-300", "150–300 m"), ("0-150", "0–150 m"),
-          ("past threshold", "past threshold")]
-WEATHER = [("easy", "Easy (24 km, no weather)"), ("clear_vfr", "Clear"), ("haze", "Haze"), ("mist", "Mist"),
-           ("fog", "Fog"), ("light_rain", "Light rain"), ("moderate_rain", "Moderate rain"),
-           ("heavy_rain", "Heavy rain")]
+RANGES = [
+    ("1500-3000", "1.5–3 km"),
+    ("1000-1500", "1–1.5 km"),
+    ("600-1000", "600 m–1 km"),
+    ("300-600", "300–600 m"),
+    ("150-300", "150–300 m"),
+    ("0-150", "0–150 m"),
+    ("past threshold", "past threshold"),
+]
+WEATHER = [
+    ("easy", "Easy (24 km, no weather)"),
+    ("clear_vfr", "Clear"),
+    ("haze", "Haze"),
+    ("mist", "Mist"),
+    ("fog", "Fog"),
+    ("light_rain", "Light rain"),
+    ("moderate_rain", "Moderate rain"),
+    ("heavy_rain", "Heavy rain"),
+]
 
 
 def load(name):
@@ -49,17 +62,23 @@ def range_chart(data):
     lo, hi = 0.70, 1.00
     xs = [L + i * (W - L - R) / (len(RANGES) - 1) for i in range(len(RANGES))]
     Y = lambda v: T + (hi - v) / (hi - lo) * (H - T - B)
-    out = [f'<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="rc-title rc-desc" class="chart">',
-           '<title id="rc-title">Mean per-frame IoU by range to the threshold</title>',
-           '<desc id="rc-desc">Lines for YOLOv8s-seg, VALNet and DeepLabV3+ across seven range bins; '
-           'the same numbers are in the table below.</desc>']
+    out = [
+        f'<svg viewBox="0 0 {W} {H}" role="img" aria-labelledby="rc-title rc-desc" class="chart">',
+        '<title id="rc-title">Mean per-frame IoU by range to the threshold</title>',
+        (
+            '<desc id="rc-desc">Lines for YOLOv8s-seg, VALNet and DeepLabV3+ across seven range bins; '
+            "the same numbers are in the table below.</desc>"
+        ),
+    ]
     for v in (0.70, 0.80, 0.90, 1.00):
         out.append(f'<line x1="{L}" x2="{W - R}" y1="{Y(v):.1f}" y2="{Y(v):.1f}" class="grid"/>')
         out.append(f'<text x="{L - 10}" y="{Y(v) + 4:.1f}" class="tick" text-anchor="end">{v:.2f}</text>')
     for x, (_, lab) in zip(xs, RANGES):
         out.append(f'<text x="{x:.1f}" y="{H - B + 22}" class="tick" text-anchor="middle">{html.escape(lab)}</text>')
-    out.append(f'<text x="{(L + W - R) / 2:.0f}" y="{H - 14}" class="axis" text-anchor="middle">'
-               'range to the runway threshold (approach runs left to right)</text>')
+    out.append(
+        f'<text x="{(L + W - R) / 2:.0f}" y="{H - 14}" class="axis" text-anchor="middle">'
+        "range to the runway threshold (approach runs left to right)</text>"
+    )
     ends = []
     for key, name, f, var, *_ in MODELS:
         vals = [data[key]["by_range"][k]["mean_iou"] for k, _ in RANGES]
@@ -67,34 +86,43 @@ def range_chart(data):
         out.append(f'<polyline points="{pts}" class="series" style="stroke:var({var})"/>')
         for x, v, (k, lab) in zip(xs, vals, RANGES):
             n = data[key]["by_range"][k]["n"]
-            out.append(f'<g class="pt"><circle cx="{x:.1f}" cy="{Y(v):.1f}" r="12" class="hit"/>'
-                       f'<circle cx="{x:.1f}" cy="{Y(v):.1f}" r="4.5" class="dot" style="fill:var({var})"/>'
-                       f'<title>{name}, {html.escape(lab)}: IoU {v:.3f} ({n:,} frames)</title></g>')
+            out.append(
+                f'<g class="pt"><circle cx="{x:.1f}" cy="{Y(v):.1f}" r="12" class="hit"/>'
+                f'<circle cx="{x:.1f}" cy="{Y(v):.1f}" r="4.5" class="dot" style="fill:var({var})"/>'
+                f"<title>{name}, {html.escape(lab)}: IoU {v:.3f} ({n:,} frames)</title></g>"
+            )
         ends.append([Y(vals[-1]), name, var])
     # direct labels at the right end, nudged apart so they never overlap
     ends.sort()
     for i in range(1, len(ends)):
         ends[i][0] = max(ends[i][0], ends[i - 1][0] + 16)
     for y, name, var in ends:
-        out.append(f'<line x1="{xs[-1] + 10:.1f}" x2="{xs[-1] + 22:.1f}" y1="{y:.1f}" y2="{y:.1f}" '
-                   f'style="stroke:var({var})" class="swatch"/>'
-                   f'<text x="{xs[-1] + 28:.1f}" y="{y + 4:.1f}" class="lab">{name}</text>')
+        out.append(
+            f'<line x1="{xs[-1] + 10:.1f}" x2="{xs[-1] + 22:.1f}" y1="{y:.1f}" y2="{y:.1f}" '
+            f'style="stroke:var({var})" class="swatch"/>'
+            f'<text x="{xs[-1] + 28:.1f}" y="{y + 4:.1f}" class="lab">{name}</text>'
+        )
     out.append("</svg>")
     return "\n".join(out)
 
 
 def iou_table(data, groups, field):
-    head = "".join(f'<th scope="col"><span class="key" style="background:var({v})"></span>{n}</th>'
-                   for _, n, _, v, *_ in MODELS)
+    head = "".join(
+        f'<th scope="col"><span class="key" style="background:var({v})"></span>{n}</th>' for _, n, _, v, *_ in MODELS
+    )
     rows = []
     for k, lab in groups:
         vals = [data[m][field][k]["mean_iou"] for m, *_ in MODELS]
         best = max(vals)
         cells = "".join(f'<td class="{"best" if v == best else ""}">{f3(v)}</td>' for v in vals)
-        rows.append(f'<tr><th scope="row">{html.escape(lab)}</th><td class="n">'
-                    f'{data[MODELS[0][0]][field][k]["n"]:,}</td>{cells}</tr>')
-    return (f'<div class="tw"><table><thead><tr><th scope="col"></th><th scope="col" class="n">frames</th>{head}'
-            f'</tr></thead><tbody>{"".join(rows)}</tbody></table></div>')
+        rows.append(
+            f'<tr><th scope="row">{html.escape(lab)}</th><td class="n">'
+            f"{data[MODELS[0][0]][field][k]['n']:,}</td>{cells}</tr>"
+        )
+    return (
+        f'<div class="tw"><table><thead><tr><th scope="col"></th><th scope="col" class="n">frames</th>{head}'
+        f"</tr></thead><tbody>{''.join(rows)}</tbody></table></div>"
+    )
 
 
 def main():
@@ -106,32 +134,41 @@ def main():
 
     data = {k: load(f) for k, _, f, *_ in MODELS}
     plain = load("iou_yolo")
-    rt = {k: json.loads((RT / f).read_text()) for k, f in
-          [("old", "summary.json"), ("none", "summary_nokf.json"), ("crab", "summary_crab.json")]}
+    rt = {
+        k: json.loads((RT / f).read_text())
+        for k, f in [("old", "summary.json"), ("none", "summary_nokf.json"), ("crab", "summary_crab.json")]
+    }
     ov = {k: data[k]["overall"] for k in data}
 
     tiles = "".join(
         f'<div class="tile"><div class="tname"><span class="key" style="background:var({v})"></span>{n}</div>'
         f'<div class="big">{f3(ov[k]["mean_iou"])}</div><div class="sub">mean IoU, all test frames</div>'
-        f'<dl><div><dt>Parameters</dt><dd>{p:.1f}M</dd></div><div><dt>Per frame</dt><dd>{ms:.0f} ms</dd></div>'
-        f'<div><dt>Training</dt><dd>{th:.1f} h</dd></div></dl></div>'
-        for k, n, _, v, p, ms, th in MODELS)
+        f"<dl><div><dt>Parameters</dt><dd>{p:.1f}M</dd></div><div><dt>Per frame</dt><dd>{ms:.0f} ms</dd></div>"
+        f"<div><dt>Training</dt><dd>{th:.1f} h</dd></div></dl></div>"
+        for k, n, _, v, p, ms, th in MODELS
+    )
 
     def rt_row(key, label):
         d = rt[key]
         o = d["overall"]
-        return (f'<tr><th scope="row">{label}</th><td>{o["yaw_deg"]["mae"]:.3f}°</td><td>{o["yaw_deg"]["p95"]:.3f}°</td>'
-                f'<td>{o["xtrack_m"]["mae"]:.2f} m</td><td>{o["xtrack_m"]["p95"]:.2f} m</td>'
-                f'<td class="n">{d["status"].get("rejected", 0)}</td></tr>')
+        return (
+            f'<tr><th scope="row">{label}</th><td>{o["yaw_deg"]["mae"]:.3f}°</td><td>{o["yaw_deg"]["p95"]:.3f}°</td>'
+            f"<td>{o['xtrack_m']['mae']:.2f} m</td><td>{o['xtrack_m']['p95']:.2f} m</td>"
+            f'<td class="n">{d["status"].get("rejected", 0)}</td></tr>'
+        )
 
     rt_weather = "".join(
         f'<tr><th scope="row">{html.escape(lab)}</th>'
-        + "".join(f'<td>{rt[v]["by_weather"][k]["xtrack_m"]["mae"]:.2f} m</td>' for v in ("old", "none", "crab"))
-        + "</tr>" for k, lab in WEATHER)
+        + "".join(f"<td>{rt[v]['by_weather'][k]['xtrack_m']['mae']:.2f} m</td>" for v in ("old", "none", "crab"))
+        + "</tr>"
+        for k, lab in WEATHER
+    )
     rt_range = "".join(
         f'<tr><th scope="row">{k.replace("-", "–")} m</th>'
-        + "".join(f'<td>{rt[v]["by_range"][k]["xtrack_m"]["mae"]:.2f} m</td>' for v in ("old", "none", "crab"))
-        + "</tr>" for k in ["1000-1500", "600-1000", "300-600", "150-300"])
+        + "".join(f"<td>{rt[v]['by_range'][k]['xtrack_m']['mae']:.2f} m</td>" for v in ("old", "none", "crab"))
+        + "</tr>"
+        for k in ["1000-1500", "600-1000", "300-600", "150-300"]
+    )
 
     pt = "past threshold"
     page = TEMPLATE.format(
@@ -139,14 +176,23 @@ def main():
         chart=range_chart(data),
         range_table=iou_table(data, RANGES, "by_range"),
         weather_table=iou_table(data, WEATHER, "by_weather"),
-        n_frames=f'{ov["yolo"]["n"]:,}',
-        cap_img=img(figs / "cap.jpg"), fog_img=img(figs / "cmp_fog.jpg"), rain_img=img(figs / "cmp_rain.jpg"),
+        n_frames=f"{ov['yolo']['n']:,}",
+        cap_img=img(figs / "cap.jpg"),
+        fog_img=img(figs / "cmp_fog.jpg"),
+        rain_img=img(figs / "cmp_rain.jpg"),
         samuel_img=img(figs / "samuel.jpg"),
-        cap_before=f3(plain["by_range"][pt]["mean_iou"]), cap_after=f3(data["yolo"]["by_range"][pt]["mean_iou"]),
-        all_before=f3(plain["overall"]["mean_iou"]), all_after=f3(ov["yolo"]["mean_iou"]),
+        cap_before=f3(plain["by_range"][pt]["mean_iou"]),
+        cap_after=f3(data["yolo"]["by_range"][pt]["mean_iou"]),
+        all_before=f3(plain["overall"]["mean_iou"]),
+        all_after=f3(ov["yolo"]["mean_iou"]),
         rt_rows=rt_row("old", "Original EKF") + rt_row("none", "No filter") + rt_row("crab", "Fixed EKF (crab state)"),
-        rt_weather=rt_weather, rt_range=rt_range, rt_frames=f'{rt["crab"]["frames"]:,}', rt_flights=rt["crab"]["flights"],
-        dl_empty=ov["deeplab"]["empty_pred"], yolo_empty=ov["yolo"]["empty_pred"], vn_empty=ov["valnet"]["empty_pred"],
+        rt_weather=rt_weather,
+        rt_range=rt_range,
+        rt_frames=f"{rt['crab']['frames']:,}",
+        rt_flights=rt["crab"]["flights"],
+        dl_empty=ov["deeplab"]["empty_pred"],
+        yolo_empty=ov["yolo"]["empty_pred"],
+        vn_empty=ov["valnet"]["empty_pred"],
     )
     Path(args.out).write_text(page)
     print(args.out, f"{len(page) / 1e6:.2f} MB")
@@ -285,9 +331,9 @@ code {{ font: 13.5px var(--f-mono); color: var(--ink); background: var(--best); 
 <section aria-labelledby="h-side">
   <h2 id="h-side">Side by side</h2>
   <div class="two">
-    <div class="figure"><img class="still" src="{fog_img}" alt="Four-panel frame from the fog approach at 368 metres: the three models' masks on the runway and a plot of IoU against range.">
+    <div class="figure"><img class="still" src="{fog_img}" alt="Four-panel frame from the fog approach at 368 meters: the three models' masks on the runway and a plot of IoU against range.">
       <div class="cap">Fog, weather/000197 at 368&nbsp;m. White outline is the label.</div></div>
-    <div class="figure"><img class="still" src="{rain_img}" alt="Four-panel frame from the heavy-rain approach at 602 metres: the three models' masks and a plot of IoU against range.">
+    <div class="figure"><img class="still" src="{rain_img}" alt="Four-panel frame from the heavy-rain approach at 602 meters: the three models' masks and a plot of IoU against range.">
       <div class="cap">Heavy rain, weather/000414 at 602&nbsp;m.</div></div>
   </div>
 </section>
