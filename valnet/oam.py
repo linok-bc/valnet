@@ -1,19 +1,17 @@
 """
 OAM (Orientation Adaptation Module) for YOLOv8
-Based on VALNet (Wang et al., Remote Sensing 2024) — Figures 6, 11
+Based on VALNet (Wang et al., Remote Sensing 2024) — Figures 6, 11.
 """
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+from torch import nn
 
 
 class OAM(nn.Module):
-    """
-    Orientation Adaptation Module.
+    """Orientation Adaptation Module.
 
-    Enhances rotational invariance by fusing features from 90° CW rotation,
-    90° CCW rotation, and original orientation via spatial and channel attention.
+    Enhances rotational invariance by fusing features from 90° CW rotation, 90° CCW rotation, and original orientation
+    via spatial and channel attention.
 
     Args:
         channels: number of input/output channels (same in, same out)
@@ -29,7 +27,7 @@ class OAM(nn.Module):
             nn.Conv2d(2, 1, kernel_size=7, padding=3, bias=False),
             nn.Sigmoid(),
         )
-        self.cr_spatial= nn.Sequential(
+        self.cr_spatial = nn.Sequential(
             nn.Conv2d(2, 1, kernel_size=7, padding=3, bias=False),
             nn.Sigmoid(),
         )
@@ -63,14 +61,16 @@ class OAM(nn.Module):
     @staticmethod
     def _spatial_pool(x):
         """MaxAvgPool: compute max and mean along channel dim, concat -> (B, 2, H, W)."""
-        return torch.cat([
-            x.max(dim=1, keepdim=True).values,
-            x.mean(dim=1, keepdim=True),
-        ], dim=1)
+        return torch.cat(
+            [
+                x.max(dim=1, keepdim=True).values,
+                x.mean(dim=1, keepdim=True),
+            ],
+            dim=1,
+        )
 
     def _rotation_branch(self, x, rotate_fn, inverse_fn, spatial_attn):
-        """
-        Shared logic for CR-Channel and CL-Channel.
+        """Shared logic for CR-Channel and CL-Channel.
 
         1. Rotate input
         2. Compute spatial attention on rotated features
@@ -81,8 +81,8 @@ class OAM(nn.Module):
         """
         x_rot = rotate_fn(x)
 
-        pool = self._spatial_pool(x_rot)            # (B, 2, H, W)
-        attn = spatial_attn(pool)                   # (B, 1, H, W)
+        pool = self._spatial_pool(x_rot)  # (B, 2, H, W)
+        attn = spatial_attn(pool)  # (B, 1, H, W)
         x_rot_attended = x_rot * attn
 
         y = inverse_fn(x_rot_attended)
@@ -92,8 +92,9 @@ class OAM(nn.Module):
         """
         Args:
             x: (B, C, H, W) feature map from AFPN/neck at one scale
+
         Returns:
-            y: (B, C, H, W) orientation-enhanced feature map
+            y: (B, C, H, W) orientation-enhanced feature map.
         """
         # clockwise channel
         y_r = self._rotation_branch(x, self._rotate_cw, self._rotate_ccw, self.cr_spatial)
@@ -102,10 +103,10 @@ class OAM(nn.Module):
         y_l = self._rotation_branch(x, self._rotate_ccw, self._rotate_cw, self.cl_spatial)
 
         # Original-Channel: channel attention (Eq. 16-17)
-        gap = x.mean(dim=[2, 3])                    # (B, C)
-        gmp = x.amax(dim=[2, 3])                    # (B, C)
+        gap = x.mean(dim=[2, 3])  # (B, C)
+        gmp = x.amax(dim=[2, 3])  # (B, C)
         ch_attn = self.fc_out(self.fc_gap(gap) + self.fc_gmp(gmp))
-        ch_attn = ch_attn[..., None, None]          # (B, C, 1, 1)
+        ch_attn = ch_attn[..., None, None]  # (B, C, 1, 1)
         y_ur = x * torch.sigmoid(ch_attn)
 
         # Adaptive weighted fusion (Eq. 18)

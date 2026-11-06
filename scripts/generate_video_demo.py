@@ -1,5 +1,5 @@
 """
-VALNet Inference on Raw Images
+VALNet Inference on Raw Images.
 ==============================
 
 Runs VALNet on a directory of images and saves per-instance segmentation masks.
@@ -13,38 +13,52 @@ Outputs per image:
     {name}_overlay.png    — original image with colored mask overlay
 """
 
-import os
 import argparse
 import glob
-import torch
-from torch import nn
-import torch.nn.functional as F
-import numpy as np
-from PIL import Image
+import os
 
+import numpy as np
+import torch
+import torch.nn.functional as F
+from PIL import Image
+from torch import nn
 from ultralytics.utils.nms import non_max_suppression
 from ultralytics.utils.ops import process_mask
 
 from valnet.valnet import VALNetModel
 
 INSTANCE_COLORS = [
-    (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
-    (255, 0, 255), (0, 255, 255), (128, 0, 0), (0, 128, 0),
-    (0, 0, 128), (128, 128, 0), (128, 0, 128), (0, 128, 128),
-    (255, 128, 0), (255, 0, 128), (128, 255, 0), (0, 255, 128),
-    (128, 0, 255), (0, 128, 255), (200, 200, 200), (100, 100, 100),
+    (255, 0, 0),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 255, 0),
+    (255, 0, 255),
+    (0, 255, 255),
+    (128, 0, 0),
+    (0, 128, 0),
+    (0, 0, 128),
+    (128, 128, 0),
+    (128, 0, 128),
+    (0, 128, 128),
+    (255, 128, 0),
+    (255, 0, 128),
+    (128, 255, 0),
+    (0, 255, 128),
+    (128, 0, 255),
+    (0, 128, 255),
+    (200, 200, 200),
+    (100, 100, 100),
 ]
 
-IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp')
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".webp")
 
 
 def load_image(path, imgsz=640):
-    """
-    Load and preprocess a single image for VALNet inference.
+    """Load and preprocess a single image for VALNet inference.
 
     Returns:
         img_tensor: [1, 3, imgsz, imgsz] normalized float32 tensor
-        orig_size:  (orig_h, orig_w) for rescaling masks back
+        orig_size: (orig_h, orig_w) for rescaling masks back
     """
     img = Image.open(path).convert("RGB")
     orig_size = (img.height, img.width)
@@ -58,14 +72,13 @@ def load_image(path, imgsz=640):
 
 @torch.no_grad()
 def infer_single(model, img_tensor, device, conf_thres=0.25, iou_thres=0.7, max_det=300):
-    """
-    Run inference on a single image tensor.
+    """Run inference on a single image tensor.
 
     Returns:
-        masks_np:   [n_det, H, W] binary masks (numpy, at model resolution)
-        confs:      [n_det] confidence scores (numpy)
-        boxes:      [n_det, 4] xyxy boxes (numpy)
-        n_det:      number of detections
+        masks_np: [n_det, H, W] binary masks (numpy, at model resolution)
+        confs: [n_det] confidence scores (numpy)
+        boxes: [n_det, 4] xyxy boxes (numpy)
+        n_det: number of detections
     """
     img_tensor = img_tensor.to(device)
     imgsz = img_tensor.shape[2:]
@@ -112,12 +125,12 @@ def infer_single(model, img_tensor, device, conf_thres=0.25, iou_thres=0.7, max_
 def save_masks(masks_np, confs, orig_size, output_dir, name, save_binary, save_instances, save_overlay, orig_img_path):
     """Save binary, instance, and overlay masks for one image."""
     h, w = masks_np.shape[1], masks_np.shape[2]
-    n_det = masks_np.shape[0]
+    masks_np.shape[0]
 
     # Resize masks to original image size
     if (orig_size[0] != h) or (orig_size[1] != w):
         masks_tensor = torch.from_numpy(masks_np).unsqueeze(0).float()  # [1, n_det, H, W]
-        masks_resized = F.interpolate(masks_tensor, size=orig_size, mode='bilinear', align_corners=False)
+        masks_resized = F.interpolate(masks_tensor, size=orig_size, mode="bilinear", align_corners=False)
         masks_np = (masks_resized[0] > 0.5).numpy()
 
     oh, ow = orig_size
@@ -165,11 +178,9 @@ def main():
 
     # Collect images
     if os.path.isdir(args.images):
-        image_paths = sorted([
-            os.path.join(args.images, f)
-            for f in os.listdir(args.images)
-            if f.lower().endswith(IMAGE_EXTENSIONS)
-        ])
+        image_paths = sorted(
+            [os.path.join(args.images, f) for f in os.listdir(args.images) if f.lower().endswith(IMAGE_EXTENSIONS)]
+        )
     else:
         image_paths = sorted(glob.glob(args.images))
 
@@ -180,15 +191,15 @@ def main():
     print(f"Found {len(image_paths)} images")
 
     # Build model
-    device = torch.device(args.device if torch.cuda.is_available() else 'cpu')
+    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     state = torch.load(args.checkpoint, map_location=device)
     # The class count lives in the checkpoint: the head's class conv is [nc, c3, 1, 1]
     nc = state["head.cv3.0.2.weight"].shape[0]
     # ... and so does the architecture variant
-    arch = dict(
-        cem_depthwise=state["neck.cem_p3.lowpass_conv.weight"].shape[1] == 1,
-        afpn_stage1="neck.afpn.layer1_1.conv.weight" in state,
-    )
+    arch = {
+        "cem_depthwise": state["neck.cem_p3.lowpass_conv.weight"].shape[1] == 1,
+        "afpn_stage1": "neck.afpn.layer1_1.conv.weight" in state,
+    }
     model = VALNetModel.from_ultralytics(args.yolo_weights, ch=(128, 256, 512), nc=nc, **arch)
     model.model = nn.ModuleList([model.backbone_p3, model.backbone_p4, model.backbone_p5, model.neck, model.head])
     model.load_state_dict(state)
@@ -202,35 +213,40 @@ def main():
         name = os.path.splitext(os.path.basename(img_path))[0]
         img_tensor, orig_size = load_image(img_path, imgsz=args.imgsz)
 
-        masks_np, confs, boxes, n_det = infer_single(
-            model, img_tensor, device,
+        masks_np, confs, _boxes, n_det = infer_single(
+            model,
+            img_tensor,
+            device,
             conf_thres=args.conf,
             iou_thres=args.iou,
         )
 
         if n_det == 0:
-            print(f"[{i+1}/{len(image_paths)}] {name}: no detections")
+            print(f"[{i + 1}/{len(image_paths)}] {name}: no detections")
             # Save blank masks
             oh, ow = orig_size
             if not args.no_binary:
-                Image.fromarray(np.zeros((oh, ow), dtype=np.uint8)).save(
-                    os.path.join(args.output, f"{name}_mask.png"))
+                Image.fromarray(np.zeros((oh, ow), dtype=np.uint8)).save(os.path.join(args.output, f"{name}_mask.png"))
             if not args.no_instances:
                 Image.fromarray(np.zeros((oh, ow, 3), dtype=np.uint8)).save(
-                    os.path.join(args.output, f"{name}_instances.png"))
+                    os.path.join(args.output, f"{name}_instances.png")
+                )
             if args.overlay:
-                Image.open(img_path).convert("RGB").save(
-                    os.path.join(args.output, f"{name}_overlay.png"))
+                Image.open(img_path).convert("RGB").save(os.path.join(args.output, f"{name}_overlay.png"))
             continue
 
         save_masks(
-            masks_np, confs, orig_size, args.output, name,
+            masks_np,
+            confs,
+            orig_size,
+            args.output,
+            name,
             save_binary=not args.no_binary,
             save_instances=not args.no_instances,
             save_overlay=args.overlay,
             orig_img_path=img_path,
         )
-        print(f"[{i+1}/{len(image_paths)}] {name}: {n_det} instance(s), max conf {confs.max():.3f}")
+        print(f"[{i + 1}/{len(image_paths)}] {name}: {n_det} instance(s), max conf {confs.max():.3f}")
 
     print(f"Done. Results saved to {args.output}/")
 

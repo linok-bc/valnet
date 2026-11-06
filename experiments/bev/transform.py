@@ -35,16 +35,14 @@ from experiments.bev.camera import CameraModel
 
 # camera axes when depression and roll are both zero (looking level, forward):
 #   x_cam = Y_ground, y_cam = Z_ground, z_cam = X_ground
-_R_LEVEL = np.array([[0.0, 1.0, 0.0],
-                     [0.0, 0.0, 1.0],
-                     [1.0, 0.0, 0.0]], dtype=np.float64)
+_R_LEVEL = np.array([[0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]], dtype=np.float64)
 
 
 def depression_deg(pitch_deg: float, tilt_deg: float) -> float:
     """Total downward look angle of the optical axis.
 
-    Positive means looking at the ground. A nose-up pitch raises the camera, so
-    it subtracts from the fixed downward mounting tilt.
+    Positive means looking at the ground. A nose-up pitch raises the camera, so it subtracts from the fixed downward
+    mounting tilt.
     """
     return tilt_deg - pitch_deg
 
@@ -52,32 +50,28 @@ def depression_deg(pitch_deg: float, tilt_deg: float) -> float:
 def rotation_ground_to_camera(roll_deg: float, depression: float) -> np.ndarray:
     """R such that p_camera = R @ p_ground.
 
-    `roll_deg` follows the collector's airframe convention: POSITIVE IS RIGHT
-    WING DOWN. Rolling the aircraft right rotates the camera clockwise about its
-    own optical axis, which rotates the scene anticlockwise in the image, hence
-    the negated angle below. Fitting the camera against the logs (see
-    experiments/bev_yolo/calibrate.py) picks this sign out cleanly: it lands at a
-    1.4 px median corner residual against 5.6 px for the other one.
+    `roll_deg` follows the collector's airframe convention: POSITIVE IS RIGHT WING DOWN. Rolling the aircraft right
+    rotates the camera clockwise about its own optical axis, which rotates the scene anticlockwise in the image, hence
+    the negated angle below. Fitting the camera against the logs (see experiments/bev_yolo/calibrate.py) picks this sign
+    out cleanly: it lands at a 1.4 px median corner residual against 5.6 px for the other one.
     """
     d = math.radians(depression)
     r = -math.radians(roll_deg)
     # pitch the camera down about its own x (right) axis
-    rx = np.array([[1.0, 0.0, 0.0],
-                   [0.0, math.cos(d), -math.sin(d)],
-                   [0.0, math.sin(d), math.cos(d)]], dtype=np.float64)
+    rx = np.array(
+        [[1.0, 0.0, 0.0], [0.0, math.cos(d), -math.sin(d)], [0.0, math.sin(d), math.cos(d)]], dtype=np.float64
+    )
     # roll about the optical axis
-    rz = np.array([[math.cos(r), -math.sin(r), 0.0],
-                   [math.sin(r), math.cos(r), 0.0],
-                   [0.0, 0.0, 1.0]], dtype=np.float64)
+    rz = np.array(
+        [[math.cos(r), -math.sin(r), 0.0], [math.sin(r), math.cos(r), 0.0], [0.0, 0.0, 1.0]], dtype=np.float64
+    )
     return rz @ rx @ _R_LEVEL
 
 
-def ground_to_image(cam: CameraModel, roll_deg: float, pitch_deg: float,
-                    height_m: float) -> np.ndarray:
+def ground_to_image(cam: CameraModel, roll_deg: float, pitch_deg: float, height_m: float) -> np.ndarray:
     """Homography mapping ground (X, Y, 1) -> image (u, v, 1).
 
-    Ground points are (X forward, Y right) in metres; the plane sits `height_m`
-    below the camera.
+    Ground points are (X forward, Y right) in meters; the plane sits `height_m` below the camera.
     """
     R = rotation_ground_to_camera(roll_deg, depression_deg(pitch_deg, cam.tilt_deg))
     M = cam.K @ R
@@ -88,8 +82,8 @@ def ground_to_image(cam: CameraModel, roll_deg: float, pitch_deg: float,
 def horizon_v(cam: CameraModel, roll_deg: float, pitch_deg: float):
     """Image row of the horizon at the principal column, or None if off-frame.
 
-    Sanity anchor: with zero roll and zero depression the horizon sits exactly
-    on the principal point; looking down pushes it ABOVE centre (smaller v).
+    Sanity anchor: with zero roll and zero depression the horizon sits exactly on the principal point; looking down
+    pushes it ABOVE center (smaller v).
     """
     R = rotation_ground_to_camera(roll_deg, depression_deg(pitch_deg, cam.tilt_deg))
     # the vanishing line of the ground plane is the image of its points at
@@ -105,11 +99,10 @@ class BEVGrid:
 
     Pixel (u, v) of the BEV image corresponds to the ground point
 
-        X = x_near + (height - 1 - v) * mpp        (forward, metres)
-        Y = (u - (width - 1) / 2)    * mpp         (right,   metres)
+        X = x_near + (height - 1 - v) * mpp        (forward, meters)
+        Y = (u - (width - 1) / 2)    * mpp         (right,   meters)
 
-    so the aircraft sits at the bottom-centre looking up the image, X grows
-    upward and Y grows rightward.
+    so the aircraft sits at the bottom-centre looking up the image, X grows upward and Y grows rightward.
     """
 
     def __init__(self, width: int, height: int, mpp: float, x_near: float = 0.0):
@@ -125,21 +118,21 @@ class BEVGrid:
     @property
     def A(self) -> np.ndarray:
         """Homography mapping BEV pixel (u, v, 1) -> ground (X, Y, 1)."""
-        return np.array([
-            [0.0, -self.mpp, self.x_near + (self.height - 1) * self.mpp],
-            [self.mpp, 0.0, -(self.width - 1) / 2.0 * self.mpp],
-            [0.0, 0.0, 1.0],
-        ], dtype=np.float64)
+        return np.array(
+            [
+                [0.0, -self.mpp, self.x_near + (self.height - 1) * self.mpp],
+                [self.mpp, 0.0, -(self.width - 1) / 2.0 * self.mpp],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
 
     def extent_m(self):
-        """(forward_min, forward_max, lateral_half_width) in metres."""
-        return (self.x_near,
-                self.x_near + (self.height - 1) * self.mpp,
-                (self.width - 1) / 2.0 * self.mpp)
+        """(forward_min, forward_max, lateral_half_width) in meters."""
+        return (self.x_near, self.x_near + (self.height - 1) * self.mpp, (self.width - 1) / 2.0 * self.mpp)
 
 
-def bev_from_image(cam: CameraModel, grid: BEVGrid, roll_deg: float,
-                   pitch_deg: float, height_m: float) -> np.ndarray:
+def bev_from_image(cam: CameraModel, grid: BEVGrid, roll_deg: float, pitch_deg: float, height_m: float) -> np.ndarray:
     """Homography mapping source image pixels -> BEV pixels.
 
     This is what cv2.warpPerspective and cv2.perspectiveTransform both want.
@@ -149,11 +142,12 @@ def bev_from_image(cam: CameraModel, grid: BEVGrid, roll_deg: float,
     return np.linalg.inv(image_from_bev)
 
 
-def warp_image(img: np.ndarray, m_bev: np.ndarray, grid: BEVGrid,
-               border_value=0) -> np.ndarray:
+def warp_image(img: np.ndarray, m_bev: np.ndarray, grid: BEVGrid, border_value=0) -> np.ndarray:
     """Warp a perspective image into the BEV grid."""
     return cv2.warpPerspective(
-        img, m_bev, grid.size,
+        img,
+        m_bev,
+        grid.size,
         flags=cv2.INTER_LINEAR,
         borderMode=cv2.BORDER_CONSTANT,
         borderValue=border_value,
