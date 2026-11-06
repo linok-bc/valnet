@@ -28,7 +28,7 @@ import pandas as pd
 
 from experiments.joint_demo import data
 
-sys.path.insert(0, str(data.ROOT / "Restart"))
+sys.path.insert(0, str(data.ROOT / "capstone-dof-estimation"))
 from evaluation.configs import _AN_LM  # noqa: E402
 from evaluation.observations import YoloMaskCache  # noqa: E402
 from pose_estimation.g_dof import (GDofParams, GDofState,  # noqa: E402

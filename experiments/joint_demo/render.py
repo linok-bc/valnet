@@ -35,7 +35,7 @@ import numpy as np  # noqa: E402
 
 from experiments.joint_demo import data  # noqa: E402
 
-sys.path.insert(0, str(data.ROOT / "Restart"))
+sys.path.insert(0, str(data.ROOT / "capstone-dof-estimation"))
 from evaluation.video import _quad  # noqa: E402
 from pose_estimation.g_dof import GDofParams  # noqa: E402
 from runway_detection.xp12.calibration import (load_calibrations,  # noqa: E402

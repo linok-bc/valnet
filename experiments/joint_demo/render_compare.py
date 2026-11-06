@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Four cross-track methods, one video each, on the flights unseen by every model.
 
-    samuel   Samuel's joint (heading, cross-track) mask fit + EKF   (Restart/)
+    samuel   Samuel's joint (heading, cross-track) mask fit + EKF   (capstone-dof-estimation/)
     tilt     our edge-line tilt, free_width                          (edge_lines)
     bev      Ryu et al. on the bev_seg BEV warp, INS yaw + Kalman    (bev_yolo)
     fused    Samuel's EKF with tilt as a second cross-track measurement (fuse.py)
@@ -46,7 +46,7 @@ from experiments.joint_demo import data  # noqa: E402
 from experiments.joint_demo.render import (Panel, _fig_to_bgr, _line_segment,  # noqa: E402
                                            _poly, _put, _zoom)
 
-sys.path.insert(0, str(data.ROOT / "Restart"))
+sys.path.insert(0, str(data.ROOT / "capstone-dof-estimation"))
 from evaluation.video import _quad  # noqa: E402
 from pose_estimation.g_dof import GDofParams  # noqa: E402
 from runway_detection.xp12.calibration import (load_calibrations,  # noqa: E402

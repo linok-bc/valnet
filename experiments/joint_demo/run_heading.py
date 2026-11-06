@@ -13,7 +13,7 @@ import sys
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-RESTART = Path(__file__).resolve().parents[2] / "Restart"
+RESTART = Path(__file__).resolve().parents[2] / "capstone-dof-estimation"
 sys.path.insert(0, str(RESTART))
 
 import pandas as pd  # noqa: E402

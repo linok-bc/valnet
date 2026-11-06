@@ -1,4 +1,4 @@
-[submodule "Restart"]
-	path = Restart
+[submodule "capstone-dof-estimation"]
+	path = capstone-dof-estimation
 	url = git@github.com:linok-bc/capstone-dof-estimation.git
 	branch = crab-ekf

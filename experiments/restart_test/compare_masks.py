@@ -23,7 +23,7 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "Restart"))
+sys.path.insert(0, str(ROOT / "capstone-dof-estimation"))
 
 from experiments.restart_test.run import BINS, CACHE, stats  # noqa: E402
 

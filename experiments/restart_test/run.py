@@ -46,7 +46,7 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "Restart"))
+sys.path.insert(0, str(ROOT / "capstone-dof-estimation"))
 
 HERE = Path(__file__).resolve().parent
 CACHE = HERE / "cache"

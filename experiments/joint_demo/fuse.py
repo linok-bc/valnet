@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Fuse our edge-line tilt cross-track into Samuel's kinematic EKF.
 
-Samuel's filter (Restart/evaluation/runner.py, KinematicEKF) tracks
+Samuel's filter (capstone-dof-estimation/evaluation/runner.py, KinematicEKF) tracks
 s = [yaw, yaw_rate, lat] and takes his mask fit's z = [yaw, lat] each frame.
 Fusion adds a second, scalar measurement of lat per frame:
 
@@ -31,7 +31,7 @@ import pandas as pd
 
 from experiments.joint_demo import data
 
-sys.path.insert(0, str(data.ROOT / "Restart"))
+sys.path.insert(0, str(data.ROOT / "capstone-dof-estimation"))
 from evaluation.configs import make_method  # noqa: E402
 from evaluation.estimators import FrameInput  # noqa: E402
 from evaluation.observations import YoloMaskCache, observed_mask  # noqa: E402
