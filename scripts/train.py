@@ -1,33 +1,33 @@
+import math
 import os
 import sys
-import math
 from copy import copy
-from tqdm import tqdm
 from pathlib import Path
-from omegaconf import OmegaConf
-from matplotlib import pyplot as plt
 
 import torch
+from matplotlib import pyplot as plt
+from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
+from ultralytics.cfg import get_cfg
 from ultralytics.data import build_dataloader, build_yolo_dataset
 from ultralytics.data.utils import check_det_dataset
 from ultralytics.utils.loss import v8SegmentationLoss
-from ultralytics.cfg import get_cfg
 
-from valnet.valnet import VALNetModel, resize_head_classes
-from valnet.evaluate_map import evaluate_valnet
 from valnet.ema import ModelEMA
+from valnet.evaluate_map import evaluate_valnet
+from valnet.valnet import VALNetModel, resize_head_classes
 
 """
 # 1. Build model
 """
-main_dir = Path(os.path.dirname(os.path.realpath(__file__)), '..').absolute()
-omegaCfgPath = Path(main_dir, 'configs/main.yaml')
+main_dir = Path(os.path.dirname(os.path.realpath(__file__)), "..").absolute()
+omegaCfgPath = Path(main_dir, "configs/main.yaml")
 # dotlist overrides, e.g. `python scripts/train.py train.epochs=1 train.fraction=0.05`
 omegaCfg = OmegaConf.merge(OmegaConf.load(omegaCfgPath), OmegaConf.from_cli())
 
-cfg = get_cfg() # from Ultralytics
+cfg = get_cfg()  # from Ultralytics
 cfg.data = omegaCfg.data.config
 cfg.imgsz = omegaCfg.data.image_size
 cfg.batch = omegaCfg.train.batch_size
@@ -36,12 +36,13 @@ cfg.fliplr = omegaCfg.train.fliplr  # 0 for xp12: a flip mirrors cross-track
 cfg.mosaic = omegaCfg.train.mosaic  # composites 4 images; see configs/main.yaml
 cfg.fraction = omegaCfg.train.fraction  # of the train split; <1 only for smoke tests
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 init_from = omegaCfg.train.init_from
 # When starting from a VALNet checkpoint, build the head at the checkpoint's
 # class count first (80 after COCO pretraining) and resize after loading.
 valnet = VALNetModel.from_ultralytics(
-    Path(main_dir, omegaCfg.yolov8_checkpoint), ch=(128, 256, 512),
+    Path(main_dir, omegaCfg.yolov8_checkpoint),
+    ch=(128, 256, 512),
     nc=None if init_from else omegaCfg.data.num_classes,
     **omegaCfg.model,
 )
@@ -81,12 +82,20 @@ writer = SummaryWriter(log_dir=logdir)
 data_dict = check_det_dataset(cfg.data)
 
 train_dataset = build_yolo_dataset(
-    cfg=cfg, img_path=data_dict["train"], batch=cfg.batch,
-    data=data_dict, mode="train", rect=False,
+    cfg=cfg,
+    img_path=data_dict["train"],
+    batch=cfg.batch,
+    data=data_dict,
+    mode="train",
+    rect=False,
 )
 val_dataset = build_yolo_dataset(
-    cfg=cfg, img_path=data_dict["val"], batch=cfg.batch,
-    data=data_dict, mode="val", rect=False,
+    cfg=cfg,
+    img_path=data_dict["val"],
+    batch=cfg.batch,
+    data=data_dict,
+    mode="val",
+    rect=False,
 )
 train_loader = build_dataloader(
     dataset=train_dataset,
@@ -111,8 +120,8 @@ val_loader = build_dataloader(
 #     what Ultralytics' own optimizer builder does.
 LR_MULT = {
     "backbone": omegaCfg.optim.backbone_lr_mult,
-    "neck":     omegaCfg.optim.neck_lr_mult,
-    "head":     omegaCfg.optim.head_lr_mult,
+    "neck": omegaCfg.optim.neck_lr_mult,
+    "head": omegaCfg.optim.head_lr_mult,
 }
 
 
@@ -155,8 +164,10 @@ assert grouped == trainable, f"param groups cover {grouped} of {trainable} train
 
 print("Optimizer parameter groups:")
 for g in param_groups:
-    print(f"  {g['group_name']:<18s} lr={g['lr']:.2e}  wd={g['weight_decay']:.1e}  "
-          f"{sum(p.numel() for p in g['params']):>10,d} params")
+    print(
+        f"  {g['group_name']:<18s} lr={g['lr']:.2e}  wd={g['weight_decay']:.1e}  "
+        f"{sum(p.numel() for p in g['params']):>10,d} params"
+    )
 
 optimizer = torch.optim.SGD(
     param_groups,
@@ -185,9 +196,7 @@ def momentum_at(it):
     if warmup_iters <= 0 or it >= warmup_iters:
         return omegaCfg.optim.momentum
     f = (it + 1) / warmup_iters
-    return omegaCfg.optim.warmup_momentum + f * (
-        omegaCfg.optim.momentum - omegaCfg.optim.warmup_momentum
-    )
+    return omegaCfg.optim.warmup_momentum + f * (omegaCfg.optim.momentum - omegaCfg.optim.warmup_momentum)
 
 
 scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_multiplier)
@@ -205,8 +214,7 @@ ema = ModelEMA(valnet, decay=omegaCfg.train.ema_decay)
 ckpt_dir = Path(main_dir, omegaCfg.train.ckpt_dir)
 os.makedirs(ckpt_dir, exist_ok=True)
 
-print(f"{iters_per_epoch} iters/epoch, {total_iters} total, "
-      f"{warmup_iters} warmup | AMP={use_amp}")
+print(f"{iters_per_epoch} iters/epoch, {total_iters} total, {warmup_iters} warmup | AMP={use_amp}")
 
 """
 # 4. Training loop
@@ -235,12 +243,12 @@ for epoch in tqdm(range(omegaCfg.train.epochs), desc="Training epoch", file=sys.
     epoch_loss = 0.0
 
     for batch_i, batch in tqdm(
-            enumerate(train_loader), 
-            leave=True if epoch==omegaCfg.train.epochs else False, 
-            desc="Training batch", 
-            file=sys.stdout, 
-            total=len(train_loader)
-        ):
+        enumerate(train_loader),
+        leave=epoch == omegaCfg.train.epochs,
+        desc="Training batch",
+        file=sys.stdout,
+        total=len(train_loader),
+    ):
         images = batch["img"].to(device).float() / 255.0
         for k in ("bboxes", "cls", "batch_idx", "masks"):
             if k in batch:
@@ -282,20 +290,22 @@ for epoch in tqdm(range(omegaCfg.train.epochs), desc="Training epoch", file=sys.
 
     # Save checkpoint (EMA weights — those are the ones we actually deploy)
     if (epoch + 1) % omegaCfg.train.save_freq == 0:
-        torch.save(ema.ema.state_dict(), Path(ckpt_dir, f"valnet_epoch{epoch+1}.pt"))
+        torch.save(ema.ema.state_dict(), Path(ckpt_dir, f"valnet_epoch{epoch + 1}.pt"))
 
     # Perform evaluation at set intervals
     if (epoch + 1) % omegaCfg.train.val_freq == 0:
         metrics = evaluate_valnet(ema.ema, val_loader)
-        val_map, val_ap50, val_ap75 = metrics['mAP'], metrics['AP50'], metrics['AP75']
-        tqdm.write(f"Validation mAP: {val_map}, AP@50: {val_ap50}, AP@75: {val_ap75} "
-                   f"(proto-res mAP {metrics['mAP_proto']:.4f})")
+        val_map, val_ap50, val_ap75 = metrics["mAP"], metrics["AP50"], metrics["AP75"]
+        tqdm.write(
+            f"Validation mAP: {val_map}, AP@50: {val_ap50}, AP@75: {val_ap75} "
+            f"(proto-res mAP {metrics['mAP_proto']:.4f})"
+        )
 
-        epochs.append(epoch+1)
+        epochs.append(epoch + 1)
         val_mAP.append(val_map)
         val_AP50.append(val_ap50)
         val_AP75.append(val_ap75)
-        
+
         writer.add_scalar("Val/mAP", val_map, epoch)
         writer.add_scalar("Val/AP50", val_ap50, epoch)
         writer.add_scalar("Val/mAP75", val_ap75, epoch)
@@ -308,15 +318,15 @@ for epoch in tqdm(range(omegaCfg.train.epochs), desc="Training epoch", file=sys.
             best_map = val_map
             torch.save(ema.ema.state_dict(), Path(ckpt_dir, "valnet_best.pt"))
             tqdm.write(f"  new best mAP {best_map:.4f} -> valnet_best.pt")
-    
+
     writer.flush()
 
 print(f"Training complete — best val mAP {best_map:.4f} ({Path(ckpt_dir, 'valnet_best.pt')})")
 writer.close()
 
-plt.plot(epochs, val_mAP, label = "val mAP")
-plt.plot(epochs, val_AP50, label = "val AP50")
-plt.plot(epochs, val_AP75, label = "val AP75")
+plt.plot(epochs, val_mAP, label="val mAP")
+plt.plot(epochs, val_AP50, label="val AP50")
+plt.plot(epochs, val_AP75, label="val AP75")
 plt.legend()
-plt.savefig('validation.jpg')
+plt.savefig("validation.jpg")
 plt.show()

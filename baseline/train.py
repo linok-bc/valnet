@@ -82,8 +82,7 @@ def main():
 
     best = Path(args["project"], args["name"], "weights", "best.pt")
     print(f"\nbest weights: {best}")
-    print(f"evaluate on the shared harness with:\n"
-          f"  python baseline/eval.py --weights {best}")
+    print(f"evaluate on the shared harness with:\n  python baseline/eval.py --weights {best}")
 
 
 if __name__ == "__main__":

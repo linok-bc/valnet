@@ -16,7 +16,7 @@ after-the-fact intersection that is easy to forget.
 
 The kept set, the per-frame ground truth and the per-frame grid for each policy
 all land in meta/<split>.jsonl, which is what eval.py reads to score every arm
-in metres rather than in each arm's own pixels.
+in meters rather than in each arm's own pixels.
 
 Splits are grouped BY AIRPORT, not by episode: two approaches to the same runway
 are near-duplicates, and letting them straddle a split would inflate everything.
@@ -55,17 +55,20 @@ def load_camera(cfg):
     path = Path(cfg["camera"]["fit"]) if cfg["camera"].get("fit") else None
     if path and path.exists():
         fitted = json.loads(path.read_text())
-        print(f"camera: {path} (fitted, {fitted['residual_px']['median_px']:.2f} px "
-              f"median residual on {fitted['n_frames']} frames)")
+        print(
+            f"camera: {path} (fitted, {fitted['residual_px']['median_px']:.2f} px "
+            f"median residual on {fitted['n_frames']} frames)"
+        )
         if Path(fitted.get("data", "")).resolve() != Path(cfg["source"]["root"]).resolve():
-            print(f"  WARNING: fitted on {fitted.get('data')}, building from "
-                  f"{cfg['source']['root']}.\n  Re-run calibrate.py unless you are "
-                  f"sure the camera did not change.")
+            print(
+                f"  WARNING: fitted on {fitted.get('data')}, building from "
+                f"{cfg['source']['root']}.\n  Re-run calibrate.py unless you are "
+                f"sure the camera did not change."
+            )
         return CameraModel(**fitted["camera"])
     c = cfg["camera"]
     print("camera: config fallback -- run calibrate.py, do not trust this blindly")
-    return CameraModel.from_fov(c["width"], c["height"], c["fov_x_deg"],
-                                c["fov_y_deg"], c.get("tilt_deg", 0.0))
+    return CameraModel.from_fov(c["width"], c["height"], c["fov_x_deg"], c["fov_y_deg"], c.get("tilt_deg", 0.0))
 
 
 class FramePlan:
@@ -74,7 +77,7 @@ class FramePlan:
     def __init__(self, frame, runway, poly_src, per_grid, split, name):
         self.frame, self.runway = frame, runway
         self.poly_src = poly_src
-        self.per_grid = per_grid           # {grid name: (BEVGrid, polygon in it)}
+        self.per_grid = per_grid  # {grid name: (BEVGrid, polygon in it)}
         self.split, self.name = split, name
 
     def record(self):
@@ -94,9 +97,10 @@ class FramePlan:
             "yaw_deg": fr.yaw_deg,
             "pitch_deg": fr.pitch_deg,
             "roll_deg": fr.roll_deg,
-            "grids": {name: {"width": g.width, "height": g.height,
-                             "mpp": g.mpp, "x_near": g.x_near}
-                      for name, (g, _) in self.per_grid.items()},
+            "grids": {
+                name: {"width": g.width, "height": g.height, "mpp": g.mpp, "x_near": g.x_near}
+                for name, (g, _) in self.per_grid.items()
+            },
         }
 
 
@@ -111,8 +115,15 @@ def plan_frames(cfg, cam, grids, runways):
         raise SystemExit(f"no episodes under {root}")
 
     plans = []
-    dropped = {"unlabelled": 0, "range": 0, "no_runway": 0, "behind_camera": 0,
-               "off_canvas": 0, "side_clipped": 0, "too_small": 0}
+    dropped = {
+        "unlabelled": 0,
+        "range": 0,
+        "no_runway": 0,
+        "behind_camera": 0,
+        "off_canvas": 0,
+        "side_clipped": 0,
+        "too_small": 0,
+    }
     src_size = (cam.width, cam.height)
 
     for ep in tqdm(episodes, desc="planning"):
@@ -122,7 +133,7 @@ def plan_frames(cfg, cam, grids, runways):
             continue
         split = split_of(ep.airport, cfg["split_fractions"])
         for fr in ep.frames(stride=sel["stride"]):
-            if not fr.labelled:
+            if not fr.labeled:
                 dropped["unlabelled"] += 1
                 continue
             if not (sel["min_range_m"] <= fr.range_m <= sel["max_range_m"]):
@@ -132,22 +143,19 @@ def plan_frames(cfg, cam, grids, runways):
             poly_src = fr.polygon_px(*src_size)
             per_grid, reason = {}, None
             for name, policy in grids.items():
-                grid = policy.for_frame(cam, fr.roll_deg, fr.pitch_deg, fr.height_m,
-                                        range_m=fr.range_m)
-                m_bev = bev_from_image(cam, grid, fr.roll_deg, fr.pitch_deg,
-                                       fr.height_m)
+                grid = policy.for_frame(cam, fr.roll_deg, fr.pitch_deg, fr.height_m, range_m=fr.range_m)
+                m_bev = bev_from_image(cam, grid, fr.roll_deg, fr.pitch_deg, fr.height_m)
                 pts, valid = warp_points(poly_src, m_bev)
                 if not valid.all():
-                    reason = "behind_camera"      # a corner at or above the horizon
+                    reason = "behind_camera"  # a corner at or above the horizon
                     break
                 # Clipping at the FAR end is expected and harmless: the canvas
                 # stops before the far threshold, and the near edge -- the only
                 # edge the estimator uses -- is untouched. Clipping at the SIDES
                 # shaves the runway lengthwise, so the fitted box comes out
-                # narrower than the runway and its centre is pulled inboard,
-                # biasing cross-track by metres. Those frames are dropped.
-                if sel.get("drop_side_clipped", True) and (
-                        pts[:, 0].min() < 0 or pts[:, 0].max() > grid.width - 1):
+                # narrower than the runway and its center is pulled inboard,
+                # biasing cross-track by meters. Those frames are dropped.
+                if sel.get("drop_side_clipped", True) and (pts[:, 0].min() < 0 or pts[:, 0].max() > grid.width - 1):
                     reason = "side_clipped"
                     break
                 poly_bev = clip_to_canvas(pts, grid.width, grid.height)
@@ -162,8 +170,7 @@ def plan_frames(cfg, cam, grids, runways):
             if reason:
                 dropped[reason] += 1
                 continue
-            plans.append(FramePlan(fr, rw, poly_src, per_grid, split,
-                                   f"{ep.path.name}_{fr.stem}"))
+            plans.append(FramePlan(fr, rw, poly_src, per_grid, split, f"{ep.path.name}_{fr.stem}"))
 
     return plans, dropped
 
@@ -189,19 +196,24 @@ def write_arm_trees(out: Path, plans, arms, cam):
             if link.is_symlink() or link.exists():
                 link.unlink()
             link.symlink_to(img.resolve())
-            (out / "arms" / arm.name / "labels" / p.split / f"{p.name}.txt").write_text(
-                fmt(poly, w, h) + "\n")
+            (out / "arms" / arm.name / "labels" / p.split / f"{p.name}.txt").write_text(fmt(poly, w, h) + "\n")
 
-        (out / "arms" / arm.name / "data.yaml").write_text(yaml.safe_dump({
-            "path": str((out / "arms" / arm.name).resolve()),
-            "train": "images/train", "val": "images/val", "test": "images/test",
-            "names": {0: "runway"},
-        }, sort_keys=False))
+        (out / "arms" / arm.name / "data.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "path": str((out / "arms" / arm.name).resolve()),
+                    "train": "images/train",
+                    "val": "images/val",
+                    "test": "images/test",
+                    "names": {0: "runway"},
+                },
+                sort_keys=False,
+            )
+        )
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--config", default="experiments/bev_yolo/config.yaml")
     ap.add_argument("--out", default=None, help="override dataset.out")
     ap.add_argument("--dry-run", action="store_true", help="plan and report, write nothing")
@@ -224,18 +236,31 @@ def main():
     print(f"dropped: {dropped}")
 
     ranges = np.array([p.frame.range_m for p in plans])
-    print(f"range m: {ranges.min():.0f} .. {ranges.max():.0f} "
-          f"(median {np.median(ranges):.0f})")
+    print(f"range m: {ranges.min():.0f} .. {ranges.max():.0f} (median {np.median(ranges):.0f})")
     for name in grids:
-        ratios = np.array([
-            resolution_report(cam, p.per_grid[name][0], p.frame.roll_deg,
-                              p.frame.pitch_deg, p.frame.height_m, p.frame.range_m,
-                              p.runway.width_m)["ratio"] for p in plans])
-        print(f"  grid {name:10s} BEV/source resolution on the runway width: "
-              f"median {np.median(ratios):.2f}  p10 {np.percentile(ratios, 10):.2f}"
-              f"  p90 {np.percentile(ratios, 90):.2f}")
-    print("  (<1 means the canvas samples the runway more coarsely than the source "
-          "did;\n   warping cannot add detail, so this is the price of rectification)")
+        ratios = np.array(
+            [
+                resolution_report(
+                    cam,
+                    p.per_grid[name][0],
+                    p.frame.roll_deg,
+                    p.frame.pitch_deg,
+                    p.frame.height_m,
+                    p.frame.range_m,
+                    p.runway.width_m,
+                )["ratio"]
+                for p in plans
+            ]
+        )
+        print(
+            f"  grid {name:10s} BEV/source resolution on the runway width: "
+            f"median {np.median(ratios):.2f}  p10 {np.percentile(ratios, 10):.2f}"
+            f"  p90 {np.percentile(ratios, 90):.2f}"
+        )
+    print(
+        "  (<1 means the canvas samples the runway more coarsely than the source "
+        "did;\n   warping cannot add detail, so this is the price of rectification)"
+    )
     if args.dry_run:
         return
 
@@ -252,10 +277,8 @@ def main():
         if img is None:
             raise SystemExit(f"unreadable frame {p.frame.image_path}")
         for name, (grid, _) in p.per_grid.items():
-            m_bev = bev_from_image(cam, grid, p.frame.roll_deg, p.frame.pitch_deg,
-                                   p.frame.height_m)
-            cv2.imwrite(str(out / "bev" / name / p.split / f"{p.name}.jpg"),
-                        warp_image(img, m_bev, grid), quality)
+            m_bev = bev_from_image(cam, grid, p.frame.roll_deg, p.frame.pitch_deg, p.frame.height_m)
+            cv2.imwrite(str(out / "bev" / name / p.split / f"{p.name}.jpg"), warp_image(img, m_bev, grid), quality)
 
     write_arm_trees(out, plans, arms, cam)
 
@@ -264,12 +287,27 @@ def main():
             for p in plans:
                 if p.split == split:
                     fp.write(json.dumps(p.record()) + "\n")
-    (out / "meta" / "camera.json").write_text(json.dumps({
-        "camera": dict(width=cam.width, height=cam.height, fx=cam.fx, fy=cam.fy,
-                       cx=cam.cx, cy=cam.cy, tilt_deg=cam.tilt_deg),
-        "arms": cfg["arms"], "grids": cfg["grids"], "select": cfg["select"],
-        "source": cfg["source"]["root"],
-    }, indent=2) + "\n")
+    (out / "meta" / "camera.json").write_text(
+        json.dumps(
+            {
+                "camera": {
+                    "width": cam.width,
+                    "height": cam.height,
+                    "fx": cam.fx,
+                    "fy": cam.fy,
+                    "cx": cam.cx,
+                    "cy": cam.cy,
+                    "tilt_deg": cam.tilt_deg,
+                },
+                "arms": cfg["arms"],
+                "grids": cfg["grids"],
+                "select": cfg["select"],
+                "source": cfg["source"]["root"],
+            },
+            indent=2,
+        )
+        + "\n"
+    )
 
     print(f"\nwrote {out}")
     for name in arms:

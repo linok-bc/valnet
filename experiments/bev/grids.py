@@ -38,10 +38,10 @@ turns the rotated runway rectangle into a parallelogram, and the oriented box
 stops fitting it -- which is the whole thing being tested.
 """
 
-from dataclasses import dataclass
-import math
+from __future__ import annotations
 
-import numpy as np
+import math
+from dataclasses import dataclass
 
 from experiments.bev.camera import CameraModel
 from experiments.bev.transform import BEVGrid, depression_deg, horizon_v
@@ -69,10 +69,12 @@ class GridPolicy:
     min_range_m: float = 20.0
     max_range_m: float = 4000.0
 
-    def for_frame(self, cam: CameraModel, roll_deg: float, pitch_deg: float,
-                  height_m: float, range_m: float = None) -> BEVGrid:
-        """`range_m` is the known along-track distance to the threshold. Only the
-        `threshold` mode uses it; the others ignore it by design."""
+    def for_frame(
+        self, cam: CameraModel, roll_deg: float, pitch_deg: float, height_m: float, range_m: float | None = None
+    ) -> BEVGrid:
+        """`range_m` is the known along-track distance to the threshold. Only the `threshold` mode uses it; the others
+        ignore it by design.
+        """
         if self.mode == "threshold":
             if range_m is None:
                 raise ValueError("grid mode 'threshold' needs the along-track range")
@@ -111,7 +113,7 @@ class GridPolicy:
 
 
 def _range_at_row(cam: CameraModel, v: float, depression_rad: float, height_m: float):
-    """Forward ground range of the ray through image row `v` at the image centre.
+    """Forward ground range of the ray through image row `v` at the image center.
 
     None when the ray points at or above the horizon.
     """
@@ -121,14 +123,19 @@ def _range_at_row(cam: CameraModel, v: float, depression_rad: float, height_m: f
     return height_m / math.tan(ang)
 
 
-def resolution_report(cam: CameraModel, grid: BEVGrid, roll_deg: float,
-                      pitch_deg: float, height_m: float, target_range_m: float,
-                      runway_width_m: float) -> dict:
+def resolution_report(
+    cam: CameraModel,
+    grid: BEVGrid,
+    roll_deg: float,
+    pitch_deg: float,
+    height_m: float,
+    target_range_m: float,
+    runway_width_m: float,
+) -> dict:
     """How many pixels the runway width gets, in the source and in the BEV.
 
-    The honest limit of this whole idea: warping cannot invent detail. If the
-    source gives the runway 12 px across and the BEV stretches it to 40, those
-    40 px carry 12 px of information. Ratios far above 1 mean the canvas is
+    The honest limit of this whole idea: warping cannot invent detail. If the source gives the runway 12 px across and
+    the BEV stretches it to 40, those 40 px carry 12 px of information. Ratios far above 1 mean the canvas is
     oversampling; far below 1 means it is throwing information away.
     """
     d = math.radians(depression_deg(pitch_deg, cam.tilt_deg))
