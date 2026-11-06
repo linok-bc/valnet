@@ -60,6 +60,7 @@ def main():
         by_ep[r["episode"]].append(int(r["stem"]))
 
     from ultralytics import YOLO
+
     model = YOLO(args.weights)
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -70,12 +71,11 @@ def main():
         idx = sorted(idx)
         masks, binary = [], []
         for k in range(0, len(idx), 16):
-            imgs = [f"{args.root}/{ep}/images/{i:06d}.jpg" for i in idx[k:k + 16]]
+            imgs = [f"{args.root}/{ep}/images/{i:06d}.jpg" for i in idx[k : k + 16]]
             for r in model.predict(imgs, conf=args.conf, retina_masks=True, verbose=False):
                 masks.append(np.round(soft_mask(r, r.orig_shape) * 255).astype(np.uint8))
                 binary.append(best_mask(r, r.orig_shape))
-        np.savez_compressed(path, indices=np.array(idx), masks=np.stack(masks),
-                            binary=np.stack(binary))
+        np.savez_compressed(path, indices=np.array(idx), masks=np.stack(masks), binary=np.stack(binary))
         print(f"{ep}: {len(idx)} frames -> {path}", flush=True)
 
 

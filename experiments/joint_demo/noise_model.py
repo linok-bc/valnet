@@ -17,7 +17,6 @@ filter's NIS gate is what handles those.
 """
 
 import json
-from pathlib import Path
 
 import numpy as np
 
@@ -35,8 +34,9 @@ def main():
     runways = load_runways()
     frames = load_frames(root / "datasets/xp12_dataset/split_val.txt", 150, 1500, 1)
     print(f"{len(frames)} val frames, {len({f.episode.path.name for f in frames})} flights")
-    rows = score(frames, yolo_masks(str(root / "baseline/runs/stock/weights/best.pt"),
-                                    frames, 0.25, None), cam, runways)
+    rows = score(
+        frames, yolo_masks(str(root / "baseline/runs/stock/weights/best.pt"), frames, 0.25, None), cam, runways
+    )
 
     r = np.array([x["range_m"] for x in rows])
     e = np.array([x["err_free_width"] for x in rows], float)
@@ -50,7 +50,7 @@ def main():
         mid.append(0.5 * (lo + hi))
         rms.append(float(np.sqrt(np.mean(e[m] ** 2))))
         print(f"  {lo:4.0f}-{hi:4.0f} m  n {m.sum():4d}  bias {e[m].mean():+.2f}  rms {rms[-1]:.2f}")
-    out = {"range_m": mid, "rms_m": rms, "fitted_on": "split_val", "n_frames": int(len(e))}
+    out = {"range_m": mid, "rms_m": rms, "fitted_on": "split_val", "n_frames": len(e)}
     path = data.HERE / "cache/tilt_noise.json"
     path.write_text(json.dumps(out, indent=1))
     print(f"wrote {path}")

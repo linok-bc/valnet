@@ -79,6 +79,7 @@ def corners_inside(ep_dir, index, margin=0.002):
 def stage_calib(flights):
     from runway_detection.xp12 import fit_calibration, load_sequence
     from runway_detection.xp12.calibration import save_calibrations
+
     for ds in sorted({ds for ds, _ in flights}):
         path = CACHE / f"calibration_{ds}.json"
         if path.exists():
@@ -89,17 +90,20 @@ def stage_calib(flights):
                 continue
             root = ROOT / "datasets" / ds
             seq = load_sequence(root, ep)
-            seq = dataclasses.replace(seq, frames=[f for f in seq.frames
-                                                   if corners_inside(root / ep, f.index)])
+            seq = dataclasses.replace(seq, frames=[f for f in seq.frames if corners_inside(root / ep, f.index)])
             calibs[ep] = c = fit_calibration(seq)
-            print(f"calib {ds} {ep} {c.airport} {c.runway}  W={c.width_m:.1f} L={c.length_m:.0f} "
-                  f"d0={c.d0_m:+.2f} psi0={c.psi0_deg:+.4f}  rms={c.rms_px:.2f}px n={c.n_frames}", flush=True)
+            print(
+                f"calib {ds} {ep} {c.airport} {c.runway}  W={c.width_m:.1f} L={c.length_m:.0f} "
+                f"d0={c.d0_m:+.2f} psi0={c.psi0_deg:+.4f}  rms={c.rms_px:.2f}px n={c.n_frames}",
+                flush=True,
+            )
         save_calibrations(calibs, path)
 
 
 def soft_mask(result, shape):
     """Confidence-weighted union of class-0 masks, as joint_demo/cache_masks.py."""
     import cv2
+
     h, w = shape
     out = np.zeros((h, w), np.float32)
     if result.masks is None:
@@ -113,6 +117,7 @@ def soft_mask(result, shape):
 
 def stage_masks(flights, weights, imgsz, conf):
     from ultralytics import YOLO
+
     model = YOLO(weights)
     for (ds, ep), idx in flights.items():
         path = CACHE / "masks" / ds / f"{ep}.npz"
@@ -121,7 +126,7 @@ def stage_masks(flights, weights, imgsz, conf):
         path.parent.mkdir(parents=True, exist_ok=True)
         masks = []
         for k in range(0, len(idx), 8):
-            imgs = [str(ROOT / "datasets" / ds / ep / "images" / f"{i:06d}.jpg") for i in idx[k:k + 8]]
+            imgs = [str(ROOT / "datasets" / ds / ep / "images" / f"{i:06d}.jpg") for i in idx[k : k + 8]]
             for r in model.predict(imgs, imgsz=imgsz, conf=conf, half=True, retina_masks=True, verbose=False):
                 masks.append(np.round(soft_mask(r, r.orig_shape) * 255).astype(np.uint8))
         np.savez_compressed(path, indices=np.array(idx), masks=np.stack(masks))
@@ -135,15 +140,21 @@ def run_one(job):
     from evaluation.runner import RunConfig, run_sequence
     from runway_detection.xp12.calibration import load_calibrations
     from runway_detection.xp12.loader import load_sequence
+
     out = CACHE / ROWS[filt] / ds / f"{ep}.csv"
     if out.exists():
         return ds, ep, None
     calib = load_calibrations(CACHE / f"calibration_{ds}.json")[ep]
     seq = load_sequence(ROOT / "datasets" / ds, ep)
     cache = YoloMaskCache(CACHE / "masks" / ds)
-    rows = run_sequence(seq, calib, make_method(method), RunConfig(source="yolo", mode="track", kf=filt != "none",
-                                                                  kf_crab=filt == "crab"),
-                        yolo=cache, frame_indices=cache.available_indices(ep))
+    rows = run_sequence(
+        seq,
+        calib,
+        make_method(method),
+        RunConfig(source="yolo", mode="track", kf=filt != "none", kf_crab=filt == "crab"),
+        yolo=cache,
+        frame_indices=cache.available_indices(ep),
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0]))
@@ -165,8 +176,13 @@ def stats(e):
     e = e[np.isfinite(e)]
     if not len(e):
         return {"n": 0}
-    return {"n": int(len(e)), "mae": float(e.mean()), "median": float(np.median(e)),
-            "p95": float(np.percentile(e, 95)), "max": float(e.max())}
+    return {
+        "n": len(e),
+        "mae": float(e.mean()),
+        "median": float(np.median(e)),
+        "p95": float(np.percentile(e, 95)),
+        "max": float(e.max()),
+    }
 
 
 def stage_score(flights, filt):
@@ -177,14 +193,24 @@ def stage_score(flights, filt):
     for ds, ep in flights:
         for r in csv.DictReader(open(CACHE / ROWS[filt] / ds / f"{ep}.csv")):
             rng = abs(float(r["along_m"]))
-            rows.append({"ds": ds, "ep": ep, "regime": regime[(ds, ep)], "range": rng,
-                         "yaw_err": float(r["yaw_err"]), "lat_err": float(r["lat_err"]),
-                         "status": r["status"]})
+            rows.append(
+                {
+                    "ds": ds,
+                    "ep": ep,
+                    "regime": regime[(ds, ep)],
+                    "range": rng,
+                    "yaw_err": float(r["yaw_err"]),
+                    "lat_err": float(r["lat_err"]),
+                    "status": r["status"],
+                }
+            )
     nan = sum(not np.isfinite(r["yaw_err"]) for r in rows)
 
     def table(groups):
-        return {k: {"yaw_deg": stats([r["yaw_err"] for r in g]), "xtrack_m": stats([r["lat_err"] for r in g])}
-                for k, g in groups.items()}
+        return {
+            k: {"yaw_deg": stats([r["yaw_err"] for r in g]), "xtrack_m": stats([r["lat_err"] for r in g])}
+            for k, g in groups.items()
+        }
 
     by_bin = defaultdict(list)
     for r in rows:
@@ -196,21 +222,35 @@ def stage_score(flights, filt):
         by_regime[r["regime"]].append(r)
         by_flight[f"{r['ds']}/{r['ep']}"].append(r)
     flight_mae = {k: (v["yaw_deg"].get("mae"), v["xtrack_m"].get("mae")) for k, v in table(by_flight).items()}
-    summary = {"window_m": [LO, HI], "flights": len(flights), "frames": len(rows), "no_estimate": nan,
-               "status": dict(sorted(defaultdict(int, {s: sum(r["status"] == s for r in rows)
-                                                       for s in {r["status"] for r in rows}}).items())),
-               "overall": table({"all": rows})["all"], "by_range": table(dict(sorted(by_bin.items(),
-                                                                                    key=lambda kv: int(kv[0].split("-")[0])))),
-               "by_weather": table(dict(sorted(by_regime.items()))), "by_flight_mae": flight_mae}
+    summary = {
+        "window_m": [LO, HI],
+        "flights": len(flights),
+        "frames": len(rows),
+        "no_estimate": nan,
+        "status": dict(
+            sorted(
+                defaultdict(int, {s: sum(r["status"] == s for r in rows) for s in {r["status"] for r in rows}}).items()
+            )
+        ),
+        "overall": table({"all": rows})["all"],
+        "by_range": table(dict(sorted(by_bin.items(), key=lambda kv: int(kv[0].split("-")[0])))),
+        "by_weather": table(dict(sorted(by_regime.items()))),
+        "by_flight_mae": flight_mae,
+    }
     (HERE / SUMMARY[filt]).write_text(json.dumps(summary, indent=1))
 
     def show(name, t):
         print(f"\n{name}")
-        print(f"  {'':16s} {'n':>6s} | {'yaw MAE':>8s} {'p95':>6s} {'max':>6s} (deg) | {'xt MAE':>7s} {'p95':>6s} {'max':>6s} (m)")
+        print(
+            f"  {'':16s} {'n':>6s} | {'yaw MAE':>8s} {'p95':>6s} {'max':>6s} (deg) | {'xt MAE':>7s} {'p95':>6s} {'max':>6s} (m)"
+        )
         for k, v in t.items():
             y, x = v["yaw_deg"], v["xtrack_m"]
-            print(f"  {k:16s} {y['n']:6d} | {y['mae']:8.3f} {y['p95']:6.3f} {y['max']:6.2f}       | "
-                  f"{x['mae']:7.2f} {x['p95']:6.2f} {x['max']:6.1f}")
+            print(
+                f"  {k:16s} {y['n']:6d} | {y['mae']:8.3f} {y['p95']:6.3f} {y['max']:6.2f}       | "
+                f"{x['mae']:7.2f} {x['p95']:6.2f} {x['max']:6.1f}"
+            )
+
     print(f"{len(flights)} flights, {len(rows)} frames, {nan} without an estimate; status {summary['status']}")
     show("overall (150-1500 m)", {"all": summary["overall"]})
     show("by range to threshold (m)", summary["by_range"])
@@ -218,8 +258,7 @@ def stage_score(flights, filt):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--stages", nargs="+", default=["calib", "masks", "run", "score"])
     ap.add_argument("--test-list", default=str(ROOT / "datasets/xp12_splits/combined/test.txt"))
     ap.add_argument("--weights", default=str(ROOT / "baseline/runs/xp12_combined_yolo/weights/best.pt"))
@@ -227,9 +266,13 @@ def main():
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--method", default="maskfit_analytic_lm")
     ap.add_argument("--workers", type=int, default=12)
-    ap.add_argument("--filter", choices=list(ROWS), default="crab",
-                    help="crab: EKF with crab-angle state (the fix); old: original 3-state EKF, which "
-                         "biases cross-track 3-5 m under crosswind; none: warm start only")
+    ap.add_argument(
+        "--filter",
+        choices=list(ROWS),
+        default="crab",
+        help="crab: EKF with crab-angle state (the fix); old: original 3-state EKF, which "
+        "biases cross-track 3-5 m under crosswind; none: warm start only",
+    )
     ap.add_argument("--exclude", nargs="*", default=["xp12_dataset_weather/000209"])
     args = ap.parse_args()
 

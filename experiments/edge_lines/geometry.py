@@ -7,7 +7,7 @@ Car lane-keeping reads the lateral offset off how the lane lines LEAN instead.
 The same works for a runway:
 
     a ground line parallel to the runway, at lateral offset s from the camera,
-    together with the camera centre spans a plane. That plane's tilt about the
+    together with the camera center spans a plane. That plane's tilt about the
     runway direction is atan(s / h). Heading slides the line's image sideways
     but does not change the tilt.
 
@@ -39,6 +39,8 @@ Frames follow `experiments.bev.transform`: ground X forward along the aircraft's
 heading, Y right, Z down, camera at the origin, ground plane at Z = h.
 """
 
+from __future__ import annotations
+
 import math
 
 import cv2
@@ -47,8 +49,8 @@ import numpy as np
 from experiments.bev.camera import CameraModel
 from experiments.bev.transform import depression_deg, rotation_ground_to_camera
 
-
 # ------------------------------------------------------------ image lines --
+
 
 def _R(cam: CameraModel, roll_deg: float, pitch_deg: float) -> np.ndarray:
     return rotation_ground_to_camera(roll_deg, depression_deg(pitch_deg, cam.tilt_deg))
@@ -57,11 +59,11 @@ def _R(cam: CameraModel, roll_deg: float, pitch_deg: float) -> np.ndarray:
 def horizon_angle(cam: CameraModel, roll_deg: float, pitch_deg: float) -> float:
     """Angle of the horizon in the image, radians, measured from the +u axis.
 
-    Taken from the vanishing line of the ground plane rather than from the roll
-    sign convention, so a sign slip cannot silently tilt the row scan.
+    Taken from the vanishing line of the ground plane rather than from the roll sign convention, so a sign slip cannot
+    silently tilt the row scan.
     """
     l = np.linalg.inv(cam.K).T @ _R(cam, roll_deg, pitch_deg) @ np.array([0.0, 0.0, 1.0])
-    return math.atan2(-l[0], l[1])          # direction (l1, -l0) of l0 u + l1 v + l2 = 0
+    return math.atan2(-l[0], l[1])  # direction (l1, -l0) of l0 u + l1 v + l2 = 0
 
 
 def _derotation(cam: CameraModel, angle: float) -> np.ndarray:
@@ -72,14 +74,14 @@ def _derotation(cam: CameraModel, angle: float) -> np.ndarray:
     return np.linalg.inv(T) @ Rz @ T
 
 
-def edge_points(mask: np.ndarray, cam: CameraModel, roll_deg: float,
-                pitch_deg: float, trim_px: int = 3, border_px: int = 1):
+def edge_points(
+    mask: np.ndarray, cam: CameraModel, roll_deg: float, pitch_deg: float, trim_px: int = 3, border_px: int = 1
+):
     """Row-scan a runway mask into left- and right-edge points.
 
-    Returns (left, right, D): points in ROLL-FREE pixel coordinates, one per
-    usable row and side, and the 3x3 derotation D that produced them. The half-
-    pixel offset puts each point on the mask boundary rather than on the centre
-    of the outermost pixel.
+    Returns (left, right, D): points in ROLL-FREE pixel coordinates, one per usable row and side, and the 3x3 derotation
+    D that produced them. The half- pixel offset puts each point on the mask boundary rather than on the center of the
+    outermost pixel.
     """
     vs, us = np.nonzero(mask)
     if len(us) < 20:
@@ -89,8 +91,7 @@ def edge_points(mask: np.ndarray, cam: CameraModel, roll_deg: float,
     p = np.column_stack([us, vs, np.ones(len(us))]) @ D.T
     ur, vr = p[:, 0], p[:, 1]
     row = np.round(vr).astype(np.int64)
-    on_border = ((us < border_px) | (us > W - 1 - border_px)
-                 | (vs < border_px) | (vs > H - 1 - border_px))
+    on_border = (us < border_px) | (us > W - 1 - border_px) | (vs < border_px) | (vs > H - 1 - border_px)
 
     # the extreme pixel of every row, via a sort by (row, u')
     order = np.lexsort((ur, row))
@@ -111,9 +112,8 @@ def edge_points(mask: np.ndarray, cam: CameraModel, roll_deg: float,
 def fit_line(pts: np.ndarray, iters: int = 4, k: float = 3.0, floor_px: float = 0.5):
     """Robust fit of u = a + b v to roll-free edge points.
 
-    Least squares, then repeatedly drop points beyond k robust sigmas and refit.
-    Returns (a, b, rms_px, n_used) or None. Fitting u against v, not v against
-    u, because runway edges are closer to vertical than horizontal.
+    Least squares, then repeatedly drop points beyond k robust sigmas and refit. Returns (a, b, rms_px, n_used) or None.
+    Fitting u against v, not v against u, because runway edges are closer to vertical than horizontal.
     """
     if pts is None or len(pts) < 5:
         return None
@@ -146,8 +146,8 @@ def line_through(p: np.ndarray, q: np.ndarray) -> np.ndarray:
 
 # ------------------------------------------------------------- the ground --
 
-def edge_plane(l_img: np.ndarray, cam: CameraModel, roll_deg: float,
-               pitch_deg: float) -> np.ndarray:
+
+def edge_plane(l_img: np.ndarray, cam: CameraModel, roll_deg: float, pitch_deg: float) -> np.ndarray:
     """Unit normal, in the ground frame, of the plane through the camera and an image line."""
     n = _R(cam, roll_deg, pitch_deg).T @ cam.K.T @ l_img
     return n / np.linalg.norm(n)
@@ -162,13 +162,12 @@ def runway_direction(n_left: np.ndarray, n_right: np.ndarray) -> np.ndarray:
 
 
 def lateral_offset(n: np.ndarray, d: np.ndarray, height_m: float) -> float:
-    """Signed offset of an edge line from the aircraft, metres, positive to the RIGHT of d.
+    """Signed offset of an edge line from the aircraft, meters, positive to the RIGHT of d.
 
-    The ground line is the plane's intersection with Z = h. Writing its points
-    as s e + t d + h z with e = d rotated 90 deg right, the plane condition
-    n . P = 0 gives s = -h n_z / (n . e) once n is made perpendicular to d. With
-    `free` direction n is already perpendicular; with `known` direction this is
-    the plane nearest the fitted one that is parallel to the runway.
+    The ground line is the plane's intersection with Z = h. Writing its points as s e + t d + h z with e = d rotated 90
+    deg right, the plane condition n . P = 0 gives s = -h n_z / (n . e) once n is made perpendicular to d. With `free`
+    direction n is already perpendicular; with `known` direction this is the plane nearest the fitted one that is
+    parallel to the runway.
     """
     n = n - (n @ d) * d
     e = np.array([-d[1], d[0], 0.0])
@@ -178,14 +177,20 @@ def lateral_offset(n: np.ndarray, d: np.ndarray, height_m: float) -> float:
     return float(-height_m * n[2] / ne)
 
 
-def crosstrack(l_left: np.ndarray, l_right: np.ndarray, cam: CameraModel,
-               roll_deg: float, pitch_deg: float, height_m: float,
-               width_m: float, yaw_deg: float = None):
+def crosstrack(
+    l_left: np.ndarray,
+    l_right: np.ndarray,
+    cam: CameraModel,
+    roll_deg: float,
+    pitch_deg: float,
+    height_m: float,
+    width_m: float,
+    yaw_deg: float | None = None,
+):
     """All four estimates from a pair of image edge lines.
 
-    Returns a dict keyed "<direction>_<scale>" (free_height, free_width,
-    known_height, known_width), each the aircraft's metres RIGHT of the
-    centreline, plus diagnostics. `known_*` are omitted when yaw_deg is None.
+    Returns a dict keyed "<direction>_<scale>" (free_height, free_width, known_height, known_width), each the aircraft's
+    meters RIGHT of the centreline, plus diagnostics. `known_*` are omitted when yaw_deg is None.
     """
     nL = edge_plane(l_left, cam, roll_deg, pitch_deg)
     nR = edge_plane(l_right, cam, roll_deg, pitch_deg)
@@ -200,17 +205,24 @@ def crosstrack(l_left: np.ndarray, l_right: np.ndarray, cam: CameraModel,
         sR = lateral_offset(nR, d, height_m)
         out[f"{name}_height"] = -(sL + sR) / 2
         span = sR - sL
-        out[f"{name}_width"] = (-(width_m / 2) * (sL + sR) / span
-                                if span > 1e-6 else float("nan"))
+        out[f"{name}_width"] = -(width_m / 2) * (sL + sR) / span if span > 1e-6 else float("nan")
         out[f"{name}_width_m"] = span
     d = dirs["free"]
     out["yaw_fit_deg"] = -math.degrees(math.atan2(d[1], d[0]))
     return out
 
 
-def estimate_from_mask(mask: np.ndarray, cam: CameraModel, roll_deg: float,
-                       pitch_deg: float, height_m: float, width_m: float,
-                       yaw_deg: float = None, trim_px: int = 3, min_rows: int = 5):
+def estimate_from_mask(
+    mask: np.ndarray,
+    cam: CameraModel,
+    roll_deg: float,
+    pitch_deg: float,
+    height_m: float,
+    width_m: float,
+    yaw_deg: float | None = None,
+    trim_px: int = 3,
+    min_rows: int = 5,
+):
     """Mask -> row scan -> two robust edge lines -> cross-track. None on failure."""
     left, right, D = edge_points(mask, cam, roll_deg, pitch_deg, trim_px=trim_px)
     if D is None or len(left) < min_rows or len(right) < min_rows:
@@ -218,8 +230,16 @@ def estimate_from_mask(mask: np.ndarray, cam: CameraModel, roll_deg: float,
     fl, fr = fit_line(left), fit_line(right)
     if fl is None or fr is None:
         return None
-    out = crosstrack(line_from_fit(fl[0], fl[1], D), line_from_fit(fr[0], fr[1], D),
-                     cam, roll_deg, pitch_deg, height_m, width_m, yaw_deg)
+    out = crosstrack(
+        line_from_fit(fl[0], fl[1], D),
+        line_from_fit(fr[0], fr[1], D),
+        cam,
+        roll_deg,
+        pitch_deg,
+        height_m,
+        width_m,
+        yaw_deg,
+    )
     out.update(rows_left=fl[3], rows_right=fr[3], rms_left=fl[2], rms_right=fr[2])
     return out
 
@@ -227,6 +247,5 @@ def estimate_from_mask(mask: np.ndarray, cam: CameraModel, roll_deg: float,
 def rasterize(poly_px: np.ndarray, width: int, height: int) -> np.ndarray:
     """Polygon in pixels -> uint8 mask, clipped to the image as a detector's would be."""
     m = np.zeros((height, width), dtype=np.uint8)
-    cv2.fillPoly(m, [np.round(poly_px * 16).astype(np.int32)], 1,
-                 lineType=cv2.LINE_8, shift=4)
+    cv2.fillPoly(m, [np.round(poly_px * 16).astype(np.int32)], 1, lineType=cv2.LINE_8, shift=4)
     return m

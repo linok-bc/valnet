@@ -9,7 +9,7 @@ THREE SOURCES, one pipeline, the same frames:
 
     EXACT LINES   lines through the label's four corners -- no mask at all. The
                   floor: what the labels and camera model allow.
-    GT MASK       the label quad rasterised to a mask, then row-scanned and
+    GT MASK       the label quad rasterized to a mask, then row-scanned and
                   fitted exactly like a prediction. What a perfect segmenter gets.
     YOLO MASK     the detector's highest-confidence mask, full resolution.
 
@@ -58,23 +58,28 @@ import numpy as np
 from experiments.bev.camera import CameraModel
 from experiments.bev.episodes import Episode, load_runways
 from experiments.bev.ryu import kalman_track
-from experiments.bev_yolo.ryu_eval import summarise
-from experiments.edge_lines.geometry import (crosstrack, estimate_from_mask,
-                                             line_through, rasterize)
+from experiments.bev_yolo.ryu_eval import summarize
+from experiments.edge_lines.geometry import (
+    crosstrack,
+    estimate_from_mask,
+    line_through,
+    rasterize,
+)
 
 VARIANTS = ("free_width", "free_height", "known_width", "known_height")
 
 
 def load_frames(split_file, lo, hi, stride):
-    """Every labelled frame of the split's episodes inside the range window."""
-    eps = sorted({re.search(r"/(\d{6})/images/", l).group(1)
-                  for l in Path(split_file).read_text().splitlines() if l.strip()})
+    """Every labeled frame of the split's episodes inside the range window."""
+    eps = sorted(
+        {re.search(r"/(\d{6})/images/", l).group(1) for l in Path(split_file).read_text().splitlines() if l.strip()}
+    )
     root = Path(split_file).parent
     frames = []
     for e in eps:
         ep = Episode(root / e)
         for f in ep.frames(stride):
-            if f.labelled and lo <= f.range_m < hi:
+            if f.labeled and lo <= f.range_m < hi:
                 frames.append(f)
     return frames
 
@@ -82,13 +87,13 @@ def load_frames(split_file, lo, hi, stride):
 def yolo_masks(weights, frames, conf, device, batch=16, imgsz=None):
     """Highest-confidence runway mask per frame at image resolution, or None."""
     from ultralytics import YOLO
+
     model = YOLO(weights)
     out = []
     for i in range(0, len(frames), batch):
-        paths = [str(f.image_path) for f in frames[i:i + batch]]
+        paths = [str(f.image_path) for f in frames[i : i + batch]]
         kw = {} if imgsz is None else {"imgsz": imgsz}
-        for r in model.predict(paths, conf=conf, retina_masks=True, verbose=False,
-                               device=device, **kw):
+        for r in model.predict(paths, conf=conf, retina_masks=True, verbose=False, device=device, **kw):
             if r.masks is None or len(r.masks) == 0:
                 out.append(None)
                 continue
@@ -108,15 +113,21 @@ def score(frames, source, cam, runways):
     rows = []
     for k, f in enumerate(frames):
         W = runways[(f.episode.airport, f.episode.runway_name)].width_m
-        row = {"episode": f.episode.path.name, "stem": f.stem,
-               "range_m": f.range_m, "along_m": f.along_m, "truth_m": f.right_m}
+        row = {
+            "episode": f.episode.path.name,
+            "stem": f.stem,
+            "range_m": f.range_m,
+            "along_m": f.along_m,
+            "truth_m": f.right_m,
+        }
         args = (cam, f.roll_deg, f.pitch_deg, f.height_m, W, f.yaw_deg)
         if source == "exact":
             q = f.polygon_px(cam.width, cam.height)
             out = crosstrack(line_through(q[0], q[1]), line_through(q[3], q[2]), *args)
         else:
-            mask = (rasterize(f.polygon_px(cam.width, cam.height), cam.width, cam.height)
-                    if source == "gt" else source[k])
+            mask = (
+                rasterize(f.polygon_px(cam.width, cam.height), cam.width, cam.height) if source == "gt" else source[k]
+            )
             out = None if mask is None else estimate_from_mask(mask, *args)
         for v in VARIANTS:
             est = np.nan if out is None else out[v]
@@ -168,26 +179,28 @@ def kalman(rows, key, q, r, gate=None, tag="kf"):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--split-file", default="datasets/xp12_dataset/split_test.txt")
     ap.add_argument("--weights", default="baseline/runs/stock/weights/best.pt")
     ap.add_argument("--camera", default="experiments/bev_yolo/camera.json")
-    ap.add_argument("--range", default="150,1500", help="lo,hi metres")
+    ap.add_argument("--range", default="150,1500", help="lo,hi meters")
     ap.add_argument("--bins", default="150,300,600,1000,1500")
     ap.add_argument("--stride", type=int, default=1)
     ap.add_argument("--conf", type=float, default=0.25)
     ap.add_argument("--device", default=None)
     ap.add_argument("--no-yolo", action="store_true")
-    ap.add_argument("--imgsz", type=int, default=None,
-                    help="YOLO inference size; default is the size it was trained at")
-    ap.add_argument("--variant", default="free_width,free_height,known_width",
-                    help=f"which to print, from {', '.join(VARIANTS)}")
+    ap.add_argument(
+        "--imgsz", type=int, default=None, help="YOLO inference size; default is the size it was trained at"
+    )
+    ap.add_argument(
+        "--variant", default="free_width,free_height,known_width", help=f"which to print, from {', '.join(VARIANTS)}"
+    )
     ap.add_argument("--truth", default="corrected", choices=("corrected", "logged"))
     ap.add_argument("--kf-q", type=float, default=1e-5)
     ap.add_argument("--kf-r", type=float, default=4.0)
-    ap.add_argument("--kf-gate", type=float, default=9.0,
-                    help="innovation gate in sigma^2 for the gated filter (9 = 3 sigma)")
+    ap.add_argument(
+        "--kf-gate", type=float, default=9.0, help="innovation gate in sigma^2 for the gated filter (9 = 3 sigma)"
+    )
     ap.add_argument("--out", default="experiments/edge_lines/runs/results.json")
     args = ap.parse_args()
 
@@ -196,34 +209,35 @@ def main():
     lo, hi = map(float, args.range.split(","))
     bins = [float(b) for b in args.bins.split(",")]
     frames = load_frames(args.split_file, lo, hi, args.stride)
-    print(f"{len(frames)} frames, {len({f.episode.path.name for f in frames})} episodes, "
-          f"{lo:.0f}-{hi:.0f} m, camera fx {cam.fx:.1f}")
+    print(
+        f"{len(frames)} frames, {len({f.episode.path.name for f in frames})} episodes, "
+        f"{lo:.0f}-{hi:.0f} m, camera fx {cam.fx:.1f}"
+    )
 
-    sources = {"EXACT LINES (label corners, no mask)": "exact",
-               "GT MASK (label rasterised)": "gt"}
+    sources = {"EXACT LINES (label corners, no mask)": "exact", "GT MASK (label rasterized)": "gt"}
     if not args.no_yolo:
         sources[f"YOLO MASK ({args.weights})"] = yolo_masks(
-            args.weights, frames, args.conf, args.device, imgsz=args.imgsz)
+            args.weights, frames, args.conf, args.device, imgsz=args.imgsz
+        )
 
     results, rot = {}, None
     for label, src in sources.items():
         rows = score(frames, src, cam, runways)
         if src == "exact":
             rot = fit_rotation(rows)
-            print("\nlogged-truth rotation per episode (deg, intercept m): "
-                  + ", ".join(f"{e} {np.degrees(b):+.3f}/{a:+.2f}"
-                              for e, (b, a) in sorted(rot.items())))
+            print(
+                "\nlogged-truth rotation per episode (deg, intercept m): "
+                + ", ".join(f"{e} {np.degrees(b):+.3f}/{a:+.2f}" for e, (b, a) in sorted(rot.items()))
+            )
         if args.truth == "corrected":
             retarget(rows, rot)
         print(f"\n{'=' * 78}\n{label}   [truth: {args.truth}]")
         for v in args.variant.split(","):
-            summarise(rows, bins, v, key=f"err_{v}")
+            summarize(rows, bins, v, key=f"err_{v}")
         kalman(rows, "free_width", args.kf_q, args.kf_r)
-        summarise(rows, bins, f"free_width + Kalman (q={args.kf_q}, r={args.kf_r})",
-                  key="err_kf_free_width")
+        summarize(rows, bins, f"free_width + Kalman (q={args.kf_q}, r={args.kf_r})", key="err_kf_free_width")
         kalman(rows, "free_width", args.kf_q, args.kf_r, gate=args.kf_gate, tag="kfg")
-        summarise(rows, bins, f"free_width + GATED Kalman (gate {args.kf_gate:g} sigma^2)",
-                  key="err_kfg_free_width")
+        summarize(rows, bins, f"free_width + GATED Kalman (gate {args.kf_gate:g} sigma^2)", key="err_kfg_free_width")
         results[label] = rows
 
     out = Path(args.out)

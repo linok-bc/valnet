@@ -15,33 +15,34 @@
 # Run both. If VALNet only wins under `controlled`, the win came from
 # hobbling the baseline.
 
-preset: controlled          # controlled | stock
+preset: controlled # controlled | stock
 
-data: configs/xp12.yaml     # same splits as VALNet — do not diverge
+data: configs/xp12.yaml # same splits as VALNet — do not diverge
 weights: checkpoints/yolov8s-seg.pt
 imgsz: 640
 project: baseline/runs
-seed: 0                     # Ultralytics also sets deterministic=True
+seed: 0 # Ultralytics also sets deterministic=True
 
 controlled:
   epochs: 50
   batch: 12
   optimizer: SGD
   lr0: 0.01
-  lrf: 0.01                 # final LR = lr0 * lrf = 0.0001, matching configs/main.yaml
-  cos_lr: True              # VALNet uses cosine; Ultralytics defaults to linear
+  lrf: 0.01 # final LR = lr0 * lrf = 0.0001, matching configs/main.yaml
+  cos_lr: True # VALNet uses cosine; Ultralytics defaults to linear
   momentum: 0.937
   weight_decay: 0.0005
   warmup_epochs: 3.0
   warmup_momentum: 0.8
-  nbs: 12                   # = batch, so accumulate=1 and the optimizer steps
-                            # every batch like the VALNet loop. Ultralytics
-                            # defaults to nbs=64 (accumulate=5 at batch 12).
-  fliplr: 0.0               # a horizontal flip mirrors the runway
-  mosaic: 0.0               # mosaic composites 4 images from different viewpoints
+  nbs:
+    12 # = batch, so accumulate=1 and the optimizer steps
+    # every batch like the VALNet loop. Ultralytics
+    # defaults to nbs=64 (accumulate=5 at batch 12).
+  fliplr: 0.0 # a horizontal flip mirrors the runway
+  mosaic: 0.0 # mosaic composites 4 images from different viewpoints
 
 stock:
-  epochs: 50                # held equal so the compute budget is comparable
+  epochs: 50 # held equal so the compute budget is comparable
   batch: 12
   optimizer: auto
   # everything else left at Ultralytics defaults, including mosaic=1.0 and

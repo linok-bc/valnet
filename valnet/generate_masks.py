@@ -7,18 +7,26 @@ One output PNG per input frame:
 """
 
 import os
+
 import numpy as np
 import torch
 from PIL import Image
-
 from ultralytics.utils.nms import non_max_suppression
 from ultralytics.utils.ops import process_mask
 
-
 INSTANCE_COLORS = [
-    (255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
-    (255, 0, 255), (0, 255, 255), (128, 0, 0), (0, 128, 0),
-    (0, 0, 128), (128, 128, 0), (128, 0, 128), (0, 128, 128),
+    (255, 0, 0),
+    (0, 255, 0),
+    (0, 0, 255),
+    (255, 255, 0),
+    (255, 0, 255),
+    (0, 255, 255),
+    (128, 0, 0),
+    (0, 128, 0),
+    (0, 0, 128),
+    (128, 128, 0),
+    (128, 0, 128),
+    (0, 128, 128),
 ]
 MASK_ALPHA = 0.45
 
@@ -57,8 +65,13 @@ def generate_test_masks(
         # layout, decoded = [B, 4 + nc + nm, N], as in evaluate_map.py.
         nc_head = decoded.shape[1] - 4 - proto.shape[1]
         nms_out = non_max_suppression(
-            decoded, conf_thres=conf_thres, iou_thres=iou_thres,
-            nc=nc_head, classes=[0], multi_label=False, max_det=max_det,
+            decoded,
+            conf_thres=conf_thres,
+            iou_thres=iou_thres,
+            nc=nc_head,
+            classes=[0],
+            multi_label=False,
+            max_det=max_det,
         )
 
         for si in range(bs):
@@ -66,7 +79,7 @@ def generate_test_masks(
             h, w = imgsz
 
             # Base image: undo the 0-1 normalization back to uint8 RGB
-            base = imgs[si].cpu().numpy()       # [3, H, W]
+            base = imgs[si].cpu().numpy()  # [3, H, W]
             base = (base * 255).clip(0, 255).astype(np.uint8).transpose(1, 2, 0)
             # Ultralytics loads BGR by default; convert to RGB
             base = base[..., ::-1].copy()
@@ -78,10 +91,17 @@ def generate_test_masks(
                 pred_conf = det[:, 4]
                 mask_coeffs = det[:, 6:]
 
-                pred_masks = process_mask(
-                    proto[si], mask_coeffs, pred_boxes,
-                    shape=imgsz, upsample=True,
-                ).cpu().numpy()   # [n_det, H, W]
+                pred_masks = (
+                    process_mask(
+                        proto[si],
+                        mask_coeffs,
+                        pred_boxes,
+                        shape=imgsz,
+                        upsample=True,
+                    )
+                    .cpu()
+                    .numpy()
+                )  # [n_det, H, W]
 
                 overlay = np.zeros((h, w, 4), dtype=np.uint8)
                 order = pred_conf.argsort(descending=False).cpu().numpy()
