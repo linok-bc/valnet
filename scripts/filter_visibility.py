@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Drop frames whose runway is too far away to see from the xp12 split lists.
 
-The runway polygon is projected from geometry, so it is labelled even when fog
+The runway polygon is projected from geometry, so it is labeled even when fog
 or rain hides the runway. A frame is dropped when its slant range to the
 threshold exceeds FRACTION of the flight's set visibility (meta.txt, line 2,
 field 4, statute miles; same value as weather.json). At half the visibility
@@ -47,8 +47,7 @@ def visible(img: str, vis: dict, fraction: float) -> bool:
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", default="datasets/xp12_splits")
     ap.add_argument("--fraction", type=float, default=0.5)
     args = ap.parse_args()

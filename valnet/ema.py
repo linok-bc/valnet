@@ -21,8 +21,8 @@ import torch
 class ModelEMA:
     """Keep a shadow copy of the model weights, updated as an EMA.
 
-    The decay ramps in from 0 so the average isn't anchored to the random
-    initialization: decay(n) = base_decay * (1 - exp(-n / tau)).
+    The decay ramps in from 0 so the average isn't anchored to the random initialization: decay(n) = base_decay * (1 -
+    exp(-n / tau)).
 
     Args:
         model: the live model. Copied once at construction.

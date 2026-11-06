@@ -1,6 +1,6 @@
 """
 AFPN (Asymptotic Feature Pyramid Network) for YOLOv8
-Based on VALNet (Wang et al., Remote Sensing 2024) — Figure 10
+Based on VALNet (Wang et al., Remote Sensing 2024) — Figure 10.
 
 Architecture:
 
@@ -37,8 +37,8 @@ contributes; upsampling is nearest.
 """
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 
 class ConvBNSiLU(nn.Module):
@@ -61,8 +61,7 @@ def resize_to(x, size):
 
     Downsampling averages over each target cell so every input pixel
     contributes. Nearest-neighbour point-sampling would throw most of a
-    high-resolution map away — P3 80x80 -> 20x20 keeps only 6.2% of pixels.
-    Upsampling stays nearest.
+    high-resolution map away — P3 80x80 -> 20x20 keeps only 6.2% of pixels. Upsampling stays nearest.
     """
     size = tuple(size)
     if tuple(x.shape[-2:]) == size:
@@ -73,10 +72,8 @@ def resize_to(x, size):
 
 
 class ASFFFuseBlock(nn.Module):
-    """
-    Aligns N inputs to a common channel count and spatial size, then fuses them
-    by adaptively spatial feature fusion: one weight map per input, predicted
-    per pixel and softmaxed across inputs, followed by a 3x3 conv refinement.
+    """Aligns N inputs to a common channel count and spatial size, then fuses them by adaptively spatial feature fusion:
+    one weight map per input, predicted per pixel and softmaxed across inputs, followed by a 3x3 conv refinement.
 
     Args:
         in_chs: channel count of each input, in the order forward() receives them
@@ -86,23 +83,18 @@ class ASFFFuseBlock(nn.Module):
     def __init__(self, in_chs, out_ch):
         super().__init__()
         self.n = len(in_chs)
-        self.aligns = nn.ModuleList(
-            ConvBNSiLU(c, out_ch, 1) if c != out_ch else nn.Identity() for c in in_chs
-        )
+        self.aligns = nn.ModuleList(ConvBNSiLU(c, out_ch, 1) if c != out_ch else nn.Identity() for c in in_chs)
 
         # ASFF weight branch: compress each aligned feature, concatenate, then
         # predict one weight map per input and softmax across inputs per pixel.
         compress = max(out_ch // 8, 8)
-        self.compress = nn.ModuleList(
-            nn.Conv2d(out_ch, compress, 1) for _ in range(self.n)
-        )
+        self.compress = nn.ModuleList(nn.Conv2d(out_ch, compress, 1) for _ in range(self.n))
         self.weight = nn.Conv2d(compress * self.n, self.n, 1)
 
         self.refine = ConvBNSiLU(out_ch, out_ch, 3)
 
     def forward(self, inputs, target_size=None):
-        """
-        Fuse N feature maps.
+        """Fuse N feature maps.
 
         param[in] inputs: sequence of N feature maps, channels matching `in_chs`
         param[in] target_size: (H, W) to fuse at; defaults to the first input's
@@ -113,21 +105,20 @@ class ASFFFuseBlock(nn.Module):
         feats = [resize_to(f, tgt) for f in feats]
 
         w = torch.cat([c(f) for c, f in zip(self.compress, feats)], dim=1)
-        w = torch.softmax(self.weight(w), dim=1)          # [B, N, H, W]
+        w = torch.softmax(self.weight(w), dim=1)  # [B, N, H, W]
 
-        out = sum(w[:, i:i + 1] * f for i, f in enumerate(feats))
+        out = sum(w[:, i : i + 1] * f for i, f in enumerate(feats))
         return self.refine(out)
 
 
 class AFPN(nn.Module):
-    """
-    Asymptotic Feature Pyramid Network (Figure 10 of VALNet).
+    """Asymptotic Feature Pyramid Network (Figure 10 of VALNet).
 
     See the module docstring for the fusion order and why it starts low-level.
     """
 
     def __init__(self, ch=(128, 256, 512), stage1=True):
-        """ Make sure that these channels are right """
+        """Make sure that these channels are right."""
         super().__init__()
         c3, c4, c5 = ch
 
@@ -137,13 +128,13 @@ class AFPN(nn.Module):
         self.layer1_3 = ConvBNSiLU(c5, c5) if stage1 else nn.Identity()
 
         # Stage 2: fuse the adjacent low-level pair (P3, P4)
-        self.layer2_1 = ASFFFuseBlock((c3, c4), c3)       # Ha, at P3 scale
-        self.layer2_2 = ASFFFuseBlock((c3, c4), c4)       # Hb, at P4 scale
+        self.layer2_1 = ASFFFuseBlock((c3, c4), c3)  # Ha, at P3 scale
+        self.layer2_2 = ASFFFuseBlock((c3, c4), c4)  # Hb, at P4 scale
 
         # Stage 3: incorporate the high-level feature (P5)
-        self.layer3_1 = ASFFFuseBlock((c3, c4, c5), c3)   # O1, at P3 scale
-        self.layer3_2 = ASFFFuseBlock((c3, c4, c5), c4)   # O2, at P4 scale
-        self.layer3_3 = ASFFFuseBlock((c3, c4, c5), c5)   # O3, at P5 scale
+        self.layer3_1 = ASFFFuseBlock((c3, c4, c5), c3)  # O1, at P3 scale
+        self.layer3_2 = ASFFFuseBlock((c3, c4, c5), c4)  # O2, at P4 scale
+        self.layer3_3 = ASFFFuseBlock((c3, c4, c5), c5)  # O3, at P5 scale
 
         # Final 1x1 convolutions (Figure 10)
         self.out_1 = ConvBNSiLU(c3, c3, 1)
@@ -151,8 +142,7 @@ class AFPN(nn.Module):
         self.out_3 = ConvBNSiLU(c5, c5, 1)
 
     def forward(self, features):
-        """
-        Fuse feature maps
+        """Fuse feature maps.
 
         param[in] features: tuple containing three feature maps (p3, p4, p5)
         param[out] out: tuple containing three feature maps (o1, o2, o3) with the same shape as features

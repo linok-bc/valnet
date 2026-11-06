@@ -25,6 +25,7 @@ from pathlib import Path
 
 import cv2
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,14 +34,18 @@ from experiments.bev.camera import CameraModel
 from experiments.bev.episodes import Episode, load_runways
 from experiments.bev.ryu import kalman_track
 from experiments.edge_lines.eval import yolo_masks
-from experiments.edge_lines.geometry import (crosstrack, edge_points, fit_line,
-                                             line_from_fit)
+from experiments.edge_lines.geometry import (
+    crosstrack,
+    edge_points,
+    fit_line,
+    line_from_fit,
+)
 
 W_OUT, H_OUT = 1280, 720
-LEFT_W = 768                      # camera 768x432 on top, zoom 768x288 below
+LEFT_W = 768  # camera 768x432 on top, zoom 768x288 below
 CAM_H, ZOOM_H = 432, 288
-TINT = np.array([255, 170, 40], np.uint8)     # mask tint, RGB
-LINE = (40, 220, 255)                         # fitted edges, RGB
+TINT = np.array([255, 170, 40], np.uint8)  # mask tint, RGB
+LINE = (40, 220, 255)  # fitted edges, RGB
 
 
 def fit(mask, cam, f, width_m):
@@ -64,9 +69,14 @@ def draw_overlay(img, mask, lines, x0, y0, scale):
     """Tint the mask and draw both edges, in an image that is a crop at (x0, y0) x scale."""
     out = img.copy()
     if mask is not None:
-        m = cv2.resize(mask[y0:y0 + int(round(img.shape[0] / scale)),
-                            x0:x0 + int(round(img.shape[1] / scale))],
-                       (img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST) > 0
+        m = (
+            cv2.resize(
+                mask[y0 : y0 + round(img.shape[0] / scale), x0 : x0 + round(img.shape[1] / scale)],
+                (img.shape[1], img.shape[0]),
+                interpolation=cv2.INTER_NEAREST,
+            )
+            > 0
+        )
         out[m] = (0.55 * out[m] + 0.45 * TINT).astype(np.uint8)
     if lines is not None:
         vp = np.cross(lines["lL"], lines["lR"])
@@ -83,8 +93,7 @@ def draw_overlay(img, mask, lines, x0, y0, scale):
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--episode", required=True)
     ap.add_argument("--root", default="datasets/xp12_dataset")
     ap.add_argument("--weights", default="baseline/runs/stock/weights/best.pt")
@@ -100,7 +109,7 @@ def main():
     ep = Episode(Path(args.root) / args.episode)
     rw = load_runways()[(ep.airport, ep.runway_name)]
     lo, hi = map(float, args.range.split(","))
-    frames = [f for f in ep.frames() if f.labelled and lo <= f.range_m <= hi]
+    frames = [f for f in ep.frames() if f.labeled and lo <= f.range_m <= hi]
     frames.sort(key=lambda f: f.along_m)
     print(f"{ep}: {len(frames)} frames, YOLO at {args.imgsz}")
 
@@ -129,25 +138,49 @@ def main():
     ax.set_ylim(lo_y, hi_y)
     ax.set_xlabel("range to threshold (m)", color="#b9c3cc", fontsize=10)
     ax.set_ylabel("cross-track, m right of centreline", color="#b9c3cc", fontsize=10)
-    ax.set_title(f"{ep.airport} {ep.runway_name}  ·  flight {args.episode}",
-                 color="#e8edf2", fontsize=12, loc="left", pad=10)
-    l_truth, = ax.plot([], [], color="#e8edf2", lw=2.2, label="truth")
-    l_raw, = ax.plot([], [], ".", color="#f4a23b", ms=4, label="per-frame estimate")
-    l_kf, = ax.plot([], [], color="#3db8ff", lw=1.8, label="gated Kalman")
+    ax.set_title(
+        f"{ep.airport} {ep.runway_name}  ·  flight {args.episode}", color="#e8edf2", fontsize=12, loc="left", pad=10
+    )
+    (l_truth,) = ax.plot([], [], color="#e8edf2", lw=2.2, label="truth")
+    (l_raw,) = ax.plot([], [], ".", color="#f4a23b", ms=4, label="per-frame estimate")
+    (l_kf,) = ax.plot([], [], color="#3db8ff", lw=1.8, label="gated Kalman")
     cursor = ax.axvline(hi, color="#6b7885", lw=0.8)
-    ax.legend(loc="upper left", fontsize=8.5, facecolor="#0f1720", edgecolor="#44505c",
-              labelcolor="#e8edf2")
-    readout = fig.text(0.06, 0.03, "", color="#e8edf2", fontsize=11, family="monospace",
-                       va="bottom", linespacing=1.55)
+    ax.legend(loc="upper left", fontsize=8.5, facecolor="#0f1720", edgecolor="#44505c", labelcolor="#e8edf2")
+    readout = fig.text(0.06, 0.03, "", color="#e8edf2", fontsize=11, family="monospace", va="bottom", linespacing=1.55)
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     mp4 = out_dir / f"{args.episode}_{ep.airport}_{ep.runway_name}.mp4"
-    ff = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo",
-                           "-pix_fmt", "rgb24", "-s", f"{W_OUT}x{H_OUT}", "-r", str(args.fps),
-                           "-i", "-", "-c:v", "libx264", "-preset", "slow", "-crf", "24",
-                           "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(mp4)],
-                          stdin=subprocess.PIPE)
+    ff = subprocess.Popen(
+        [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "error",
+            "-f",
+            "rawvideo",
+            "-pix_fmt",
+            "rgb24",
+            "-s",
+            f"{W_OUT}x{H_OUT}",
+            "-r",
+            str(args.fps),
+            "-i",
+            "-",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "slow",
+            "-crf",
+            "24",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(mp4),
+        ],
+        stdin=subprocess.PIPE,
+    )
     zoom_box = None
     for i, (f, m, x) in enumerate(zip(frames, masks, fits)):
         img = cv2.cvtColor(cv2.imread(str(f.image_path)), cv2.COLOR_BGR2RGB)
@@ -169,16 +202,28 @@ def main():
         half_h = half_w * ZOOM_H / LEFT_W
         x0 = int(np.clip(cx - half_w, 0, cam.width - 2 * half_w))
         y0 = int(np.clip(cy - half_h, 0, cam.height - 2 * half_h))
-        crop = img[y0:y0 + int(2 * half_h), x0:x0 + int(2 * half_w)]
+        crop = img[y0 : y0 + int(2 * half_h), x0 : x0 + int(2 * half_w)]
         s_zoom = LEFT_W / crop.shape[1]
         zoom = cv2.resize(crop, (LEFT_W, ZOOM_H), interpolation=cv2.INTER_CUBIC)
         canvas[CAM_H:, :LEFT_W] = draw_overlay(zoom, m, x, x0, y0, s_zoom) if m is not None else zoom
         # where the zoom comes from, on the camera view
-        cv2.rectangle(canvas, (int(x0 * s_cam), int(y0 * s_cam)),
-                      (int((x0 + 2 * half_w) * s_cam), int((y0 + 2 * half_h) * s_cam)),
-                      (200, 210, 220), 1)
-        cv2.putText(canvas, f"zoom x{s_zoom:.1f}", (10, CAM_H + 22), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.55, (230, 236, 242), 1, cv2.LINE_AA)
+        cv2.rectangle(
+            canvas,
+            (int(x0 * s_cam), int(y0 * s_cam)),
+            (int((x0 + 2 * half_w) * s_cam), int((y0 + 2 * half_h) * s_cam)),
+            (200, 210, 220),
+            1,
+        )
+        cv2.putText(
+            canvas,
+            f"zoom x{s_zoom:.1f}",
+            (10, CAM_H + 22),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            (230, 236, 242),
+            1,
+            cv2.LINE_AA,
+        )
 
         k = slice(0, i + 1)
         l_truth.set_data(rng[k], truth[k])
@@ -191,21 +236,33 @@ def main():
             f"truth      {truth[i]:+7.2f} m\n"
             f"estimate   {est[i]:+7.2f} m   error {e_raw:+6.2f}\n"
             f"filtered   {kf[i]:+7.2f} m   error {kf[i] - truth[i]:+6.2f}\n"
-            f"heading used: none   flight MAE {mae_kf:.2f} m")
+            f"heading used: none   flight MAE {mae_kf:.2f} m"
+        )
         fig.canvas.draw()
         plot = np.asarray(fig.canvas.buffer_rgba())[:, :, :3]
-        canvas[:, LEFT_W:] = plot[:H_OUT, :W_OUT - LEFT_W]
+        canvas[:, LEFT_W:] = plot[:H_OUT, : W_OUT - LEFT_W]
         ff.stdin.write(canvas.tobytes())
         if i == len(frames) // 2:
-            cv2.imwrite(str(mp4.with_suffix(".jpg")), cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR),
-                        [cv2.IMWRITE_JPEG_QUALITY, 88])
+            cv2.imwrite(
+                str(mp4.with_suffix(".jpg")), cv2.cvtColor(canvas, cv2.COLOR_RGB2BGR), [cv2.IMWRITE_JPEG_QUALITY, 88]
+            )
     ff.stdin.close()
     ff.wait()
     print(f"  wrote {mp4} ({mp4.stat().st_size / 1e6:.1f} MB)")
-    (out_dir / f"{args.episode}.json").write_text(json.dumps({
-        "episode": args.episode, "airport": ep.airport, "runway": ep.runway_name,
-        "frames": len(frames), "mae_raw_m": float(mae_raw), "mae_kf_m": float(mae_kf),
-        "video": mp4.name, "poster": mp4.with_suffix(".jpg").name}))
+    (out_dir / f"{args.episode}.json").write_text(
+        json.dumps(
+            {
+                "episode": args.episode,
+                "airport": ep.airport,
+                "runway": ep.runway_name,
+                "frames": len(frames),
+                "mae_raw_m": float(mae_raw),
+                "mae_kf_m": float(mae_kf),
+                "video": mp4.name,
+                "poster": mp4.with_suffix(".jpg").name,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

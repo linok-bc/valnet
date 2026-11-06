@@ -32,15 +32,17 @@ import pandas as pd
 from experiments.joint_demo import data
 
 sys.path.insert(0, str(data.ROOT / "capstone-dof-estimation"))
-from evaluation.configs import make_method  # noqa: E402
-from evaluation.estimators import FrameInput  # noqa: E402
-from evaluation.observations import YoloMaskCache, observed_mask  # noqa: E402
-from evaluation.runner import KinematicEKF, RunConfig, _as_vec  # noqa: E402
-from pose_estimation.g_dof import GDofParams, GDofState  # noqa: E402
-from runway_detection.xp12.calibration import (load_calibrations,  # noqa: E402
-                                               pose_from_frame,
-                                               scene_from_calibration)
-from runway_detection.xp12.loader import load_sequence  # noqa: E402
+from evaluation.configs import make_method
+from evaluation.estimators import FrameInput
+from evaluation.observations import YoloMaskCache, observed_mask
+from evaluation.runner import KinematicEKF, RunConfig, _as_vec
+from pose_estimation.g_dof import GDofParams, GDofState
+from runway_detection.xp12.calibration import (
+    load_calibrations,
+    pose_from_frame,
+    scene_from_calibration,
+)
+from runway_detection.xp12.loader import load_sequence
 
 CHI2_1DOF_999 = 10.828
 
@@ -51,7 +53,7 @@ def tilt_sigma(range_m, model):
 
 def tilt_update(ekf, z, R):
     """Scalar update of lat; returns (nis, accepted)."""
-    H = np.zeros(ekf.s.size)          # lat is state 2 in both the 3-state and crab (4-state) filter
+    H = np.zeros(ekf.s.size)  # lat is state 2 in both the 3-state and crab (4-state) filter
     H[2] = 1.0
     S = float(H @ ekf.P @ H) + R
     innov = z - ekf.s[2]
@@ -113,8 +115,16 @@ def run(ep, fuse, model):
         if fuse and ekf.s is not None and np.isfinite(zt):
             _, tilt_ok = tilt_update(ekf, zt, tilt_sigma(rng_m[f.index], model) ** 2)
         x = ekf.z_pred if ekf.s is not None else np.array([math.nan, math.nan])
-        rows.append({"frame": f.index, "yaw_gt": pose.yaw_cam_deg, "lat_gt": pose.lateral_offset_m,
-                     "yaw": x[0], "lat": x[1], "tilt_accepted": tilt_ok})
+        rows.append(
+            {
+                "frame": f.index,
+                "yaw_gt": pose.yaw_cam_deg,
+                "lat_gt": pose.lateral_offset_m,
+                "yaw": x[0],
+                "lat": x[1],
+                "tilt_accepted": tilt_ok,
+            }
+        )
     return pd.DataFrame(rows)
 
 
